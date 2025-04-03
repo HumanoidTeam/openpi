@@ -1,205 +1,91 @@
 import dataclasses
-from typing import ClassVar
-
-import einops
 import numpy as np
+import einops
 
 from openpi import transforms
+from openpi.models import model as _model
 
-
-def make_aloha_example() -> dict:
-    """Creates a random input example for the Rainbow - Aloha derived policy."""
+def make_rainbow_example() -> dict:
+    """
+    Creates a random input example for the Rainbow policy.
+    """
     return {
-        "state": np.ones((14,)),
-        "images": {
-            "cam_high": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
-            "cam_low": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
-            "cam_right_wrist": np.random.randint(256, size=(3, 224, 224), dtype=np.uint8),
-        },
+        "observation.state": np.random.rand(16),
+        "observation.image.head": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
+        "observation.image.wrist_right": np.random.randint(256, size=(480, 848, 3), dtype=np.uint8),
         "prompt": "do something",
+        "action": np.random.rand(16),  # only used during training
     }
 
+def _parse_image(image) -> np.ndarray:
+    """
+    Ensures that the image is a uint8 array with shape (H, W, C).
+    Converts from float (assumed to be in [0,1]) or from a (C, H, W) layout.
+    """
+    image = np.asarray(image)
+    if np.issubdtype(image.dtype, np.floating):
+        image = (255 * image).astype(np.uint8)
+    # If the image is in (C, H, W) format, convert it to (H, W, C)
+    if image.ndim == 3 and image.shape[0] == 3:
+        image = einops.rearrange(image, "c h w -> h w c")
+    return image
 
 @dataclasses.dataclass(frozen=True)
-class AlohaInputs(transforms.DataTransformFn):
-    """Inputs for the  Rainbow - Aloha derived policy.
-
-    Expected inputs:
-    - images: dict[name, img] where img is [channel, height, width]. name must be in EXPECTED_CAMERAS.
-    - state: [14]
-    - actions: [action_horizon, 14]
+class RainbowInputs(transforms.DataTransformFn):
     """
-
-    # The action dimension of the model. Will be used to pad state and actions.
-    action_dim: int
-
-    # If true, this will convert the joint and gripper values from the standard Aloha space to
-    # the space used by the pi internal runtime which was used to train the base model.
-    adapt_to_pi: bool = True
-
-    # The expected cameras names. All input cameras must be in this set. Missing cameras will be
-    # replaced with black images and the corresponding `image_mask` will be set to False.
-    EXPECTED_CAMERAS: ClassVar[tuple[str, ...]] = ("cam_high", "cam_low", "cam_left_wrist", "cam_right_wrist")
+    Data transformation for the Rainbow robot.
+    Converts raw dataset inputs into the model's expected format.
+    
+    Expected keys in the input dictionary:
+      - "observation.state": a 16-dimensional array.
+      - "observation.image.head": an image array (480x848x3).
+      - "observation.image.wrist_right": an image array (480x848x3).
+      - "prompt": a string instruction.
+      - "action": (optional) a 16-dimensional array (for training).
+    """
+    action_dim: int  # For Rainbow, set this to 16.
+    model_type: _model.ModelType = _model.ModelType.PI0  # This remains the same.
 
     def __call__(self, data: dict) -> dict:
-        data = _decode_aloha(data, adapt_to_pi=self.adapt_to_pi)
-
-        # Get the state. We are padding from 14 to the model action dim.
-        state = transforms.pad_to_dim(data["state"], self.action_dim)
-
-        in_images = data["images"]
-        if set(in_images) - set(self.EXPECTED_CAMERAS):
-            raise ValueError(f"Expected images to contain {self.EXPECTED_CAMERAS}, got {tuple(in_images)}")
-
-        # Assume that base image always exists.
-        base_image = in_images["cam_high"]
-
+        # Process the proprioceptive state and pad to the model's action dimension.
+        state = transforms.pad_to_dim(data["observation.state"], self.action_dim)
+        
+        # Process the images.
+        head_image = _parse_image(data["observation.image.head"])
+        wrist_image = _parse_image(data["observation.image.wrist_right"])
+        
         images = {
-            "base_0_rgb": base_image,
+            "head_0_rgb": head_image,
+            "wrist_right_0_rgb": wrist_image,
         }
         image_masks = {
-            "base_0_rgb": np.True_,
+            "head_0_rgb": np.True_,
+            "wrist_right_0_rgb": np.True_,
         }
-
-        # Add the extra images.
-        extra_image_names = {
-            "left_wrist_0_rgb": "cam_left_wrist",
-            "right_wrist_0_rgb": "cam_right_wrist",
-        }
-        for dest, source in extra_image_names.items():
-            if source in in_images:
-                images[dest] = in_images[source]
-                image_masks[dest] = np.True_
-            else:
-                images[dest] = np.zeros_like(base_image)
-                image_masks[dest] = np.False_
-
+        
         inputs = {
+            "state": state,
             "image": images,
             "image_mask": image_masks,
-            "state": state,
         }
-
-        # Actions are only available during training.
-        if "actions" in data:
-            actions = np.asarray(data["actions"])
-            actions = _encode_actions_inv(actions, adapt_to_pi=self.adapt_to_pi)
-            inputs["actions"] = transforms.pad_to_dim(actions, self.action_dim)
-
+        
         if "prompt" in data:
             inputs["prompt"] = data["prompt"]
-
+        
+        # Include actions during training.
+        if "action" in data:
+            actions = transforms.pad_to_dim(data["action"], self.action_dim)
+            inputs["actions"] = actions
+        
         return inputs
 
-
 @dataclasses.dataclass(frozen=True)
-class AlohaOutputs(transforms.DataTransformFn):
-    """Outputs for the Aloha policy."""
-
-    # If true, this will convert the joint and gripper values from the standard Aloha space to
-    # the space used by the pi internal runtime which was used to train the base model.
-    adapt_to_pi: bool = True
-
+class RainbowOutputs(transforms.DataTransformFn):
+    """
+    Converts model outputs back to the Rainbow dataset format.
+    This example assumes that the model output is padded and only the first 16 dimensions
+    correspond to the actual action.
+    """
     def __call__(self, data: dict) -> dict:
-        # Only return the first 14 dims.
-        actions = np.asarray(data["actions"][:, :14])
-        return {"actions": _encode_actions(actions, adapt_to_pi=self.adapt_to_pi)}
-
-
-def _joint_flip_mask() -> np.ndarray:
-    """Used to convert between aloha and pi joint angles."""
-    return np.array([1, -1, -1, 1, 1, 1, 1, 1, -1, -1, 1, 1, 1, 1])
-
-
-def _normalize(x, min_val, max_val):
-    return (x - min_val) / (max_val - min_val)
-
-
-def _unnormalize(x, min_val, max_val):
-    return x * (max_val - min_val) + min_val
-
-
-def _gripper_to_angular(value):
-    # Aloha transforms the gripper positions into a linear space. The following code
-    # reverses this transformation to be consistent with pi0 which is pretrained in
-    # angular space.
-    #
-    # These values are coming from the Aloha code:
-    # PUPPET_GRIPPER_POSITION_OPEN, PUPPET_GRIPPER_POSITION_CLOSED
-    value = _unnormalize(value, min_val=0.01844, max_val=0.05800)
-
-    # This is the inverse of the angular to linear transformation inside the Interbotix code.
-    def linear_to_radian(linear_position, arm_length, horn_radius):
-        value = (horn_radius**2 + linear_position**2 - arm_length**2) / (2 * horn_radius * linear_position)
-        return np.arcsin(np.clip(value, -1.0, 1.0))
-
-    # The constants are taken from the Interbotix code.
-    value = linear_to_radian(value, arm_length=0.036, horn_radius=0.022)
-
-    # Normalize to [0, 1].
-    # The values 0.4 and 1.5 were measured on an actual Trossen robot.
-    return _normalize(value, min_val=0.4, max_val=1.5)
-
-
-def _gripper_from_angular(value):
-    # Convert from the gripper position used by pi0 to the gripper position that is used by Aloha.
-    # Note that the units are still angular but the range is different.
-
-    # The values 0.4 and 1.5 were measured on an actual Trossen robot.
-    value = _unnormalize(value, min_val=0.4, max_val=1.5)
-
-    # These values are coming from the Aloha code:
-    # PUPPET_GRIPPER_JOINT_OPEN, PUPPET_GRIPPER_JOINT_CLOSE
-    return _normalize(value, min_val=-0.6213, max_val=1.4910)
-
-
-def _gripper_from_angular_inv(value):
-    # Directly inverts the gripper_from_angular function.
-    value = _unnormalize(value, min_val=-0.6213, max_val=1.4910)
-    return _normalize(value, min_val=0.4, max_val=1.5)
-
-
-def _decode_aloha(data: dict, *, adapt_to_pi: bool = False) -> dict:
-    # state is [left_arm_joint_angles, right_arm_joint_angles, left_arm_gripper, right_arm_gripper]
-    # dim sizes: [6, 1, 6, 1]
-    state = np.asarray(data["state"])
-    state = _decode_state(state, adapt_to_pi=adapt_to_pi)
-
-    def convert_image(img):
-        img = np.asarray(img)
-        # Convert to uint8 if using float images.
-        if np.issubdtype(img.dtype, np.floating):
-            img = (255 * img).astype(np.uint8)
-        # Convert from [channel, height, width] to [height, width, channel].
-        return einops.rearrange(img, "c h w -> h w c")
-
-    images = data["images"]
-    images_dict = {name: convert_image(img) for name, img in images.items()}
-
-    data["images"] = images_dict
-    data["state"] = state
-    return data
-
-
-def _decode_state(state: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
-    if adapt_to_pi:
-        # Flip the joints.
-        state = _joint_flip_mask() * state
-        # Reverse the gripper transformation that is being applied by the Aloha runtime.
-        state[[6, 13]] = _gripper_to_angular(state[[6, 13]])
-    return state
-
-
-def _encode_actions(actions: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
-    if adapt_to_pi:
-        # Flip the joints.
-        actions = _joint_flip_mask() * actions
-        actions[:, [6, 13]] = _gripper_from_angular(actions[:, [6, 13]])
-    return actions
-
-
-def _encode_actions_inv(actions: np.ndarray, *, adapt_to_pi: bool = False) -> np.ndarray:
-    if adapt_to_pi:
-        actions = _joint_flip_mask() * actions
-        actions[:, [6, 13]] = _gripper_from_angular_inv(actions[:, [6, 13]])
-    return actions
+        # Trim the output actions to the first 16 dimensions.
+        return {"actions": np.asarray(data["actions"][:, :16])}
