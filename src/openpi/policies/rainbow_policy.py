@@ -73,9 +73,9 @@ class RainbowInputs(transforms.DataTransformFn):
             inputs["prompt"] = data["prompt"]
         
         # Include actions during training.
-        if "action" in data:
+        if "action" in data:  # Note: dataset uses "action" not "actions"
             actions = transforms.pad_to_dim(data["action"], self.action_dim)
-            inputs["actions"] = actions
+            inputs["actions"] = actions  # Model expects "actions" plural
         
         return inputs
 
@@ -83,9 +83,8 @@ class RainbowInputs(transforms.DataTransformFn):
 class RainbowOutputs(transforms.DataTransformFn):
     """
     Converts model outputs back to the Rainbow dataset format.
-    This example assumes that the model output is padded and only the first 16 dimensions
-    correspond to the actual action.
+    This class converts from the model's "actions" format to the dataset's "action" format.
     """
     def __call__(self, data: dict) -> dict:
-        # Trim the output actions to the first 16 dimensions.
-        return {"actions": np.asarray(data["actions"][:, :16])}
+        # Convert from model's "actions" to dataset's "action"
+        return {"action": np.asarray(data["actions"][:, :16])}  # Dataset expects "action" singular

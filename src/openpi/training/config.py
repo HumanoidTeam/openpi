@@ -25,6 +25,7 @@ import openpi.shared.normalize as _normalize
 import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
+import openpi.policies.rainbow_policy as rainbow_policy
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -318,6 +319,27 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
         return dataclasses.replace(
             self.create_base_config(assets_dirs),
             repack_transforms=repack_transform,
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRainbowDataConfig(DataConfigFactory):
+    """Data config for the Rainbow robot."""
+    default_prompt: str | None = None
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)],
+            outputs=[rainbow_policy.RainbowOutputs()],
+        )
+
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
             data_transforms=data_transforms,
             model_transforms=model_transforms,
         )
@@ -685,7 +707,7 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
 
-    # HumanoidTeam/cans_pick_one_amazon
+    # HumanoidTeam/stack
     TrainConfig(
         name="pi0_stack",
         model=pi0.Pi0Config(),
@@ -717,6 +739,23 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=40_000,
+    ),
+
+    # HumanoidTeam/simple_eye_makeup_remover_combined_dataset_v1
+    TrainConfig(
+    name="pi0_fast_rainbow",
+    model=pi0_fast.Pi0FASTConfig(action_dim=16, action_horizon=10, max_token_len=180),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/simple_eye_makeup_remover_combined_dataset_v1",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,
+        ),
+        default_prompt="Pick up the green object and place it in the empty box.",
+            batch_size=4,  # <== Ensure your batch size is at least 4.
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
     ),
     # HumanoidTeam/cans_pick_one_amazon
     TrainConfig(
