@@ -176,3 +176,4 @@ docker-compose.override.yml
 .DS_Store
 *~
 *.swp
+ckpdoritosaloha.tar.gz
