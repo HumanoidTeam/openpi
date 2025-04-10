@@ -327,7 +327,29 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfig(DataConfigFactory):
     """Data config for the Rainbow robot."""
+    """ Assumes no Pi adaptation and no delta modelization of actions"""
+
+    # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
+
+    # Repack transforms.
+    # repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
+    #     default=_transforms.Group(
+    #         inputs=[
+    #                 _transforms.RepackTransform(
+    #                 {
+    #                     "state" : "observation.state",
+    #                     "image.head_0_rgb" : "observation.image.head",
+    #                     "image.wrist_right_0_rgb" : "observation.image.wrist_right",
+    #                     "actions": "action",
+    #                 }
+    #             )
+    #         ]
+    #     )
+    # )
+    # Action keys that will be used to read the action sequence from the dataset.
+    # This should match the actual column name in the dataset
+    action_sequence_keys: Sequence[str] = ("action",)  # Use action to match dataset
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -335,14 +357,18 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
             inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
-
+      
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
 
         return dataclasses.replace(
             self.create_base_config(assets_dirs),
+            # repack_transforms=self.repack_transforms,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
         )
+
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -409,7 +435,7 @@ class TrainConfig:
     # device memory will be reduced but training could potentially be slower.
     # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
     # data parallel between 2 groups of devices.
-    fsdp_devices: int = 4
+    fsdp_devices: int = 1
 
     @property
     def assets_dirs(self) -> pathlib.Path:
@@ -743,16 +769,19 @@ _CONFIGS = [
 
     # HumanoidTeam/simple_eye_makeup_remover_combined_dataset_v1
     TrainConfig(
-    name="pi0_fast_rainbow",
-    model=pi0_fast.Pi0FASTConfig(action_dim=16, action_horizon=10, max_token_len=180),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/simple_eye_makeup_remover_combined_dataset_v1",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,
+        name="pi0_fast_rainbow",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
         ),
-        default_prompt="Pick up the green object and place it in the empty box.",
-            batch_size=4,  # <== Ensure your batch size is at least 4.
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/simple_eye_makeup_remover_combined_dataset_v1",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the green object and place it in the empty box.",
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
         num_train_steps=30_000,

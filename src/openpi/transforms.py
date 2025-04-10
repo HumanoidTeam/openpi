@@ -310,6 +310,16 @@ class PromptFromLeRobotTask(DataTransformFn):
         return {**data, "prompt": prompt}
 
 
+# @dataclasses.dataclass(frozen=True)
+# class ActionToActions(DataTransformFn):
+#     """Converts 'action' key to 'actions' key in the data dictionary."""
+    
+#     def __call__(self, data: DataDict) -> DataDict:
+#         if "action" in data and "actions" not in data:
+#             data["actions"] = data["action"]
+#         return data
+
+
 def flatten_dict(tree: at.PyTree) -> dict:
     """Flatten a nested dictionary. Uses '/' as the separator."""
     return traverse_util.flatten_dict(tree, sep="/")
