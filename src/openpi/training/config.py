@@ -746,7 +746,7 @@ _CONFIGS = [
         num_train_steps=40_000,
     ),
 
-    # HumanoidTeam/simple_eye_makeup_remover_combined_dataset_v1
+    # HumanoidTeam/POCPickCrispsFromShelfDiogo
     TrainConfig(
         name="pi0_fast_rainbow",
         model=pi0_fast.Pi0FASTConfig(
