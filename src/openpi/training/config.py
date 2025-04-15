@@ -717,7 +717,7 @@ _CONFIGS = [
         name="pi0_stack",
         model=pi0.Pi0Config(),
         data=LeRobotAlohaDataConfig(
-            repo_id="HumanoidTeam/stack",
+            repo_id="HumanoidTeam/stack_2",
             assets=AssetsConfig(
                 assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
                 asset_id="trossen",
@@ -748,7 +748,7 @@ _CONFIGS = [
 
     # HumanoidTeam/POCPickCrispsFromShelfDiogo
     TrainConfig(
-        name="pi0_fast_rainbow",
+        name="pi0_fast_rainbow_poc",
         model=pi0_fast.Pi0FASTConfig(
             action_dim=16,  # Rainbow has 16 action dimensions
             action_horizon=10,
