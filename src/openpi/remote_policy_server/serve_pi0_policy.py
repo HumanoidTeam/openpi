@@ -49,7 +49,9 @@ class PolicyServer:
     def load_model(self):
         """Load the model if not already loaded."""
         if self.policy is None:
+            logger.info("Loading model...")
             self.policy = load_model(self.config)
+            logger.info("Model loaded successfully")
     
     async def websocket_endpoint(self, websocket: WebSocket):
         client_id = id(websocket)

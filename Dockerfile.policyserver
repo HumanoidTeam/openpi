@@ -1,9 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM ubuntu:22.04 AS base
-
-
-# Set Python 3.11 as the default python3
-# RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS base
 
 # Set the working directory in the container
 WORKDIR /app
@@ -17,10 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     python3-dev \
+    nvidia-cuda-toolkit \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy the current directory contents into the container
-COPY . /app
+# Set CUDA environment variables
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
 
 # Install uv using the official installer script and add to PATH
 ENV PATH="/root/.local/bin:${PATH}"
@@ -33,24 +32,41 @@ RUN mkdir -p -m 0700 ~/.ssh && \
     git config --global url."git@github.com:".insteadOf "https://github.com/" && \
     git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
 
+# Clone OpenPI in a separate step
 RUN --mount=type=ssh git clone --recurse-submodules -b openpi-server git@github.com:HumanoidTeam/openpi.git
 
-# Install any needed packages specified in requirements.txt
-RUN --mount=type=ssh cd openpi && GIT_LFS_SKIP_SMUDGE=1 uv sync && GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+# Install dependencies in a separate step for better caching
+WORKDIR /app/openpi
+RUN --mount=type=ssh GIT_LFS_SKIP_SMUDGE=1 uv sync
+RUN --mount=type=ssh GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 
-FROM base AS policyserver
+# Final stage using runtime image to reduce size
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 as policyserver
+
+WORKDIR /app
+
+# Copy Python environment and installed packages
+COPY --from=base /root/.local /root/.local
+COPY --from=base /app/openpi /app/openpi
+COPY --from=base /usr/local/cuda /usr/local/cuda
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set environment variables
+ENV PATH="/root/.local/bin:/usr/local/cuda/bin:${PATH}"
+ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
+ENV CUDA_HOME=/usr/local/cuda
+ENV XLA_FLAGS=--xla_gpu_cuda_data_dir=/usr/local/cuda
 
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Define environment variable
-ENV PYTHONUNBUFFERED=1
+# Copy and set up the entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Run the policy server with required environment variables and arguments
-ENV JAX_PLATFORMS=cpu
-ENV XLA_FLAGS="--xla_force_host_platform_device_count=1"
-# CMD ["uv", "run", "src/openpi/remote_policy_server/serve_pi0_policy.py", "--host", "0.0.0.0", "--port", "8000"]
-ARG MODEL_NAME=pi0_fast_rainbow_poc
-ARG CHECKPOINT_PATH=s3://hm-vla/checkpoints/pi0_fast_rainbow_poc/pi0_rainbow_poc_chips/20000
-ARG CHECKPOINT_PATH_LOCAL=~/.cache/openpi/hm-vla/checkpoints/pi0_fast_rainbow_poc/pi0_rainbow_poc_chips/20000/
-CMD ["uv", "run", "serve-pi0-policy", "--model-name", "${MODEL_NAME}", "--checkpoint-path", "${CHECKPOINT_PATH}", "--host", "0.0.0.0", "--port", "8000"]
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
