@@ -835,6 +835,25 @@ _CONFIGS = [
         num_train_steps=10,
         wandb_enabled=False,
     ),
+    # HumanoidTeam/CrumpetsKeti16041932
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_crumpets",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/CrumpetsKeti16041932",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the crumpets.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
+    ),
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):

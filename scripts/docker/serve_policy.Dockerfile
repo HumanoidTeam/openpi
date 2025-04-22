@@ -13,7 +13,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.1 /uv /uvx /bin/
 WORKDIR /app
 
 # Needed because LeRobot uses git-lfs.
-RUN apt-get update && apt-get install -y git git-lfs
+RUN apt-get update && apt-get install -y git git-lfs libgl1-mesa-glx libglib2.0-0
 
 # Copy from the cache instead of linking since it's a mounted volume
 ENV UV_LINK_MODE=copy
@@ -30,5 +30,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=packages/openpi-client/pyproject.toml,target=packages/openpi-client/pyproject.toml \
     --mount=type=bind,source=packages/openpi-client/src,target=packages/openpi-client/src \
     GIT_LFS_SKIP_SMUDGE=1 uv sync --frozen --no-install-project --no-dev
+
+COPY . .
+
+# later mount an S3 link having cache data to that directory
+RUN mkdir -p /openpi_assets
+RUN printf "machine api.wandb.ai\n  login user\n  password fa558b1cbe7f5fdc127e6f47558ae6bb54cef923\n" > /root/.netrc
 
 CMD /bin/bash -c "uv run scripts/serve_policy.py $SERVER_ARGS"
