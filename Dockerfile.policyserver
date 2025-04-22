@@ -20,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV CUDA_HOME=/usr/local/cuda
 ENV PATH=${CUDA_HOME}/bin:${PATH}
 ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
 
 # Install uv using the official installer script and add to PATH
 ENV PATH="/root/.local/bin:${PATH}"
@@ -41,28 +43,9 @@ RUN --mount=type=ssh GIT_LFS_SKIP_SMUDGE=1 uv sync
 RUN --mount=type=ssh GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 
 # Final stage using runtime image to reduce size
-FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS policyserver
+FROM base AS policyserver
 
-WORKDIR /app
-
-# Copy Python environment and installed packages
-COPY --from=base /root/.local /root/.local
-COPY --from=base /app/openpi /app/openpi
-COPY --from=base /usr/local/cuda /usr/local/cuda
-
-# Install only runtime dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
-# Set environment variables
-ENV PATH="/root/.local/bin:/usr/local/cuda/bin:${PATH}"
-ENV LD_LIBRARY_PATH=/usr/local/cuda/lib64:${LD_LIBRARY_PATH}
-ENV CUDA_HOME=/usr/local/cuda
-ENV XLA_FLAGS=--xla_gpu_cuda_data_dir=/usr/local/cuda
-
-# Expose the port the app runs on
-EXPOSE 8000
+WORKDIR /app/openpi/src/openpi/remote_policy_server
 
 # Copy and set up the entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
