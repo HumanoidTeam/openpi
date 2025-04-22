@@ -47,4 +47,4 @@ EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 
 # Run the application using uvicorn
-CMD ["uvicorn", "policyserver:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "src/openpi/remote_policy_server/serve_pi0_policy.py", "--host", "0.0.0.0", "--port", "8000"]
