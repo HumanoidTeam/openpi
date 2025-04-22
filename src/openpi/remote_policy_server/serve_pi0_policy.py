@@ -1,5 +1,6 @@
 """Remote policy server for π₀ model inference."""
 
+import json
 import logging
 import time
 import traceback
@@ -12,6 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from openpi.remote_policy_server.config import ModelConfig
 from openpi.remote_policy_server.model import load_model
+
+def numpy_hook(dct):
+    """Convert numpy arrays in JSON to numpy arrays."""
+    for key, value in dct.items():
+        if isinstance(value, list):
+            dct[key] = np.array(value)
+    return dct
 
 # Configure logging
 logging.basicConfig(
