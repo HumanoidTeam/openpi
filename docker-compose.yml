@@ -11,8 +11,7 @@ x-deploy: &gpu_deploy
     resources:
       reservations:
         devices:
-          - driver: nvidia
-            count: 1
+          - driver: NVIDIA_DRIVER_CAPABILITIES
             capabilities: [gpu]
 
 networks:
@@ -32,13 +31,10 @@ services:
       - MODEL_NAME=${MODEL_NAME:-pi0_fast_rainbow_poc}
       - CHECKPOINT_PATH=${CHECKPOINT_PATH:-s3://hm-vla/checkpoints/pi0_fast_rainbow_poc/pi0_rainbow_poc_chips/20000}
       - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      # JAX/CUDA configuration
-      # - XLA_FLAGS=--xla_gpu_cuda_data_dir=/usr/local/cuda
-      # - JAX_PLATFORM_NAME=cuda
-      # - JAX_PLATFORMS=cuda
-      # - JAX_ENABLE_X64=True
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - JAX_PLATFORMS=cuda
+    runtime: nvidia
+
     networks:
       - policy-net
-    runtime: nvidia
     <<: [ *policy_server, *gpu_deploy ]
