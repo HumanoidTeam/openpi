@@ -187,7 +187,12 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     args = parser.parse_args()
     
-    config = ModelConfig()
+    config = ModelConfig(
+        state_shape=(16,),
+        image_shape=(480, 640, 3),
+        action_shape=(10, 16)
+    )
+
     if args.model_name:
         config.model_name = args.model_name
     if args.checkpoint_path:
