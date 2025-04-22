@@ -46,5 +46,11 @@ EXPOSE 8000
 # Define environment variable
 ENV PYTHONUNBUFFERED=1
 
-# Run the application using uvicorn
-CMD ["uv", "run", "src/openpi/remote_policy_server/serve_pi0_policy.py", "--host", "0.0.0.0", "--port", "8000"]
+# Run the policy server with required environment variables and arguments
+ENV JAX_PLATFORMS=cpu
+ENV XLA_FLAGS="--xla_force_host_platform_device_count=1"
+# CMD ["uv", "run", "src/openpi/remote_policy_server/serve_pi0_policy.py", "--host", "0.0.0.0", "--port", "8000"]
+ARG MODEL_NAME=pi0_fast_rainbow_poc
+ARG CHECKPOINT_PATH=s3://hm-vla/checkpoints/pi0_fast_rainbow_poc/pi0_rainbow_poc_chips/20000
+ARG CHECKPOINT_PATH_LOCAL=~/.cache/openpi/hm-vla/checkpoints/pi0_fast_rainbow_poc/pi0_rainbow_poc_chips/20000/
+CMD ["uv", "run", "serve-pi0-policy", "--model-name", "${MODEL_NAME}", "--checkpoint-path", "${CHECKPOINT_PATH}", "--host", "0.0.0.0", "--port", "8000"]
