@@ -38,6 +38,8 @@ RUN --mount=type=ssh git clone --recurse-submodules -b openpi-server git@github.
 # Install any needed packages specified in requirements.txt
 RUN --mount=type=ssh cd openpi && GIT_LFS_SKIP_SMUDGE=1 uv sync && GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 
+FROM base AS policyserver
+
 # Expose the port the app runs on
 EXPOSE 8000
 
