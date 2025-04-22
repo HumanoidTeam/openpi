@@ -1,0 +1,48 @@
+# Use an official Python runtime as a parent image
+FROM ubuntu:22.04 AS base
+
+
+# Set Python 3.11 as the default python3
+# RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies, including Git, curl, and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    openssh-client \
+    ca-certificates \
+    build-essential \
+    gcc \
+    python3-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Copy the current directory contents into the container
+COPY . /app
+
+# Install uv using the official installer script and add to PATH
+ENV PATH="/root/.local/bin:${PATH}"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    uv --version
+
+# Enable BuildKit SSH forwarding for host SSH keys and configure git
+RUN mkdir -p -m 0700 ~/.ssh && \
+    ssh-keyscan github.com >> ~/.ssh/known_hosts && \
+    git config --global url."git@github.com:".insteadOf "https://github.com/" && \
+    git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
+RUN --mount=type=ssh git clone --recurse-submodules -b openpi-server git@github.com:HumanoidTeam/openpi.git
+
+# Install any needed packages specified in requirements.txt
+RUN --mount=type=ssh cd openpi && GIT_LFS_SKIP_SMUDGE=1 uv sync && GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+
+# Expose the port the app runs on
+EXPOSE 8000
+
+# Define environment variable
+ENV PYTHONUNBUFFERED=1
+
+# Run the application using uvicorn
+CMD ["uvicorn", "policyserver:app", "--host", "0.0.0.0", "--port", "8000"]
