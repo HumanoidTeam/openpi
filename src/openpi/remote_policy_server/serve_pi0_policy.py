@@ -10,6 +10,7 @@ import numpy as np
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.websockets import WebSocketDisconnect
 
 from openpi.remote_policy_server.config import ModelConfig
 from openpi.remote_policy_server.model import load_model
@@ -137,7 +138,11 @@ class PolicyServer:
                         send_time = time.time() - start_send
                         logger.info(f"Response sent in {send_time:.3f}s")
                         logger.info(f"Total request time: {time.time() - start_receive:.3f}s")
-                        
+
+
+                    except WebSocketDisconnect:
+                        logger.info(f"Client {client_id} disconnected gracefully.")
+                        break    
                     except Exception as inference_error:
                         logger.error(f"Inference error: {str(inference_error)}")
                         logger.error(f"Inference error traceback: {traceback.format_exc()}")
@@ -150,7 +155,7 @@ class PolicyServer:
                                 "error_time": time.time() - start_inference
                             }
                         })
-                        continue
+                        # continue
                         
                 except Exception as processing_error:
                     logger.error(f"Data processing error: {str(processing_error)}")
