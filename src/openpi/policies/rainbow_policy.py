@@ -53,8 +53,8 @@ class RainbowInputs(transforms.DataTransformFn):
     
     Expected keys in the input dictionary:
       - "observation.state": a 16-dimensional array (float64).
-      - "observation.image.head": an image array (480x848x3).
-      - "observation.image.wrist_right": an image array (480x848x3).
+      - "observation.image.head": an image array (480x640x3).
+      - "observation.image.wrist_right": an image array (480x640x3).
       - "prompt": a string instruction.
       - "action": a 16-dimensional array (float64).
     """
@@ -72,6 +72,10 @@ class RainbowInputs(transforms.DataTransformFn):
         # Process the images
         base_image = _parse_image(data["observation.image.head"])
         wrist_image = _parse_image(data["observation.image.wrist_right"])
+
+
+
+        
         
         # Verify image dimensions
         if base_image.shape != (480, 640, 3) or wrist_image.shape != (480, 640, 3):

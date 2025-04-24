@@ -323,7 +323,6 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
         )
 
-
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfig(DataConfigFactory):
     """Data config for the Rainbow robot."""
@@ -744,6 +743,81 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=40_000,
+    ),
+
+    # HumanoidTeam/stack
+    TrainConfig(
+        name="pi0_clean_plate",
+        model=pi0.Pi0Config(),
+        data=LeRobotAlohaDataConfig(
+            repo_id="HumanoidTeam/clean_plate",
+            assets=AssetsConfig(
+                assets_dir="s3://openpi-assets/checkpoints/pi0_base/assets",
+                asset_id="trossen",
+            ),
+            default_prompt="Pick up a plate and clean it by dropping all the things into the box in front of you.",
+            repack_transforms=_transforms.Group(
+                inputs=[
+                    _transforms.RepackTransform(
+                        {
+                            "images": {
+                                "cam_high": "observation.images.cam_high",
+                                "cam_left_wrist": "observation.images.cam_left_wrist",
+                                "cam_right_wrist": "observation.images.cam_right_wrist",
+                            },
+                            "state": "observation.state",
+                            "actions": "action",
+                        }
+                    )
+                ]
+            ),
+            base_config=DataConfig(
+                local_files_only=False,  # Set to True for local-only datasets.
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        num_train_steps=30_000,
+    ),
+
+
+    # https://huggingface.co/datasets/HumanoidTeam/QuaversDeea23041003
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_quavers",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/QuaversDeea23041003",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the bag of chips.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
+    ),
+
+    # HumanoidTeam/CrumpetsKeti16041932
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_crumpets",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/CrumpetsKeti16041932",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the crumpets.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=30_000,
     ),
 
     # HumanoidTeam/POCPickCrispsFromShelfDiogo
