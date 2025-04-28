@@ -13,7 +13,7 @@ import openpi.shared.normalize as normalize
 import openpi.training.config as _config
 import openpi.training.data_loader as _data_loader
 import openpi.transforms as transforms
-
+import multiprocessing
 
 class RemoveStrings(transforms.DataTransformFn):
     def __call__(self, x: dict) -> dict:
@@ -48,6 +48,9 @@ def main(config_name: str, max_frames: int | None = None):
         num_frames = max_frames
         shuffle = True
 
+    total_cores = multiprocessing.cpu_count()
+    num_workers = max(1, int(total_cores * 0.25))
+    print("Number of workers:", num_workers) 
     data_loader = _data_loader.TorchDataLoader(
         dataset,
         local_batch_size=8,

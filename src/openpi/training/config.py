@@ -396,7 +396,7 @@ class TrainConfig:
     # How often (in steps) to save checkpoints.
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
-    keep_period: int | None = 5000
+    keep_period: int | None = 10000
 
     # If true, will overwrite the checkpoint directory if it already exists.
     overwrite: bool = False
@@ -413,7 +413,7 @@ class TrainConfig:
     # device memory will be reduced but training could potentially be slower.
     # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
     # data parallel between 2 groups of devices.
-    fsdp_devices: int = 4
+    fsdp_devices: int = 8
 
     @property
     def assets_dirs(self) -> pathlib.Path:
@@ -442,6 +442,27 @@ _CONFIGS = [
     #
     # Inference Aloha configs.
     #
+    # https://huggingface.co/datasets/HumanoidTeam/QualityStreetCoderArjun23041011
+TrainConfig(
+    name="pi0_fast_rainbow_poc_qualitystreetcoder_arjun",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=50,  # <-- 50 action horizon as you requested
+        max_token_len=250,  # <-- 250 tokens
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/QualityStreetCoderArjun23041011",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,  # Use task field from dataset for prompts
+        ),
+        default_prompt="Pick up the colorful octagonal candy tin.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,  # <-- 120k training steps
+),
     TrainConfig(
         name="pi0_aloha",
         model=pi0.Pi0Config(),
@@ -602,6 +623,27 @@ _CONFIGS = [
         # Turn off EMA for LoRA finetuning.
         ema_decay=None,
     ),
+    # https://huggingface.co/datasets/HumanoidTeam/LargeWalkersArjun24042107
+TrainConfig(
+    name="pi0_fast_rainbow_poc_largewalkers_arjun",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=10,
+        max_token_len=180,  # Single-arm robot, so 180 should be sufficient
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/LargeWalkersArjun24042107",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,  # Use task field from dataset for prompts
+        ),
+        default_prompt="Pick up the bag of chips.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=50_000,
+),
     #
     # Fine-tuning Aloha configs.
     #
@@ -779,6 +821,48 @@ _CONFIGS = [
         num_train_steps=30_000,
     ),
 
+    # https://huggingface.co/datasets/HumanoidTeam/AfterEightDeea23041956
+TrainConfig(
+    name="pi0_fast_rainbow_poc_aftereight_deea_250",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=50,
+        max_token_len=250,  # Single-arm robot, so 180 should be sufficient
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/AfterEightDeea23041956",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,  # Use task field from dataset for prompts
+        ),
+        default_prompt="Pick up the box.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+),
+    # https://huggingface.co/datasets/HumanoidTeam/CrumpetsDeea24041939
+TrainConfig(
+    name="pi0_fast_rainbow_poc_crumpets_deea",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=10,
+        max_token_len=180,  # Single-arm robot, so 180 should be sufficient
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/CrumpetsDeea24041939",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,  # Use task field from dataset for prompts
+        ),
+        default_prompt="Pick up the bag of chips.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=60_000,
+),
 
     # https://huggingface.co/datasets/HumanoidTeam/QuaversDeea23041003
     TrainConfig(
