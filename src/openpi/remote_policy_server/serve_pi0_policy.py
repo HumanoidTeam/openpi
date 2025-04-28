@@ -93,7 +93,7 @@ class PolicyServer:
                     
                     # Prepare observation
                     observation = {
-                        "observation.state": state,
+                        "observation.state": state.squeeze(),
                         "observation.image.head": head_image,
                         "observation.image.wrist_right": wrist_image,
                         "prompt": self.config.prompt
@@ -195,7 +195,7 @@ def main():
     args = parser.parse_args()
     
     config = ModelConfig(
-        state_shape=(16,),
+        state_shape=(1, 16),
         image_shape=(480, 640, 3),
         action_shape=(10, 16)
     )
