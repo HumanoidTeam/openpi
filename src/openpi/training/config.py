@@ -442,6 +442,28 @@ _CONFIGS = [
     #
     # Inference Aloha configs.
     #
+    # https://huggingface.co/datasets/HumanoidTeam/AfterEightSlowDeea29042256
+TrainConfig(
+    name="pi0_fast_rainbow_poc_aftereightslow_deea_250t_192bz",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/AfterEightSlowDeea29042256",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,
+        ),
+        default_prompt="Pick up the After Eight box.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=192,
+),
 
 # https://huggingface.co/datasets/HumanoidTeam/CrumpetsDeea24041939
 TrainConfig(
