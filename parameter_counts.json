@@ -1,0 +1,35 @@
+{
+  "total_parameters": 2923335408,
+  "total_parameters_billions": 2.923335408,
+  "model_size_mb": 11151.639587402344,
+  "model_size_gb": 10.890273034572601,
+  "components": {
+    "vision_encoder": 414803696,
+    "language_model": 2508531712
+  },
+  "components_billions": {
+    "vision_encoder": 0.414803696,
+    "language_model": 2.508531712
+  },
+  "components_percent": {
+    "vision_encoder": 14.18939800287193,
+    "language_model": 85.81060199712806
+  },
+  "checkpoint_specs": {
+    "checkpoint_path": "checkpoints/pi0_fast_rainbow_poc_crumpets_deea_250t_384bz/pi0_crumpets_deea_250t_384bz_h200_8x/33000/params",
+    "checkpoint_name": "33000",
+    "model_type": "pi0_fast",
+    "batch_size": 384,
+    "hardware": "H200",
+    "checkpoint_step": 33000
+  },
+  "memory_metrics": {
+    "before_load": 550,
+    "after_load": null,
+    "after_inference": null,
+    "peak_usage": null,
+    "inference_usage": null,
+    "inference_time_ms": null,
+    "inference_time_per_step_ms": null
+  }
+}
