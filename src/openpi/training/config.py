@@ -489,6 +489,30 @@ TrainConfig(
 ),
     
     # https://huggingface.co/datasets/HumanoidTeam/QualityStreetCoderArjun23041011
+
+# https://huggingface.co/datasets/HumanoidTeam/CrumpetsDeea24041939
+TrainConfig(
+    name="pi0_fast_rainbow_poc_crumpets_deea_250t_384bz",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=50,  # 50 action horizon
+        max_token_len=250,  # 250 tokens
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/CrumpetsDeea24041939",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,  # Use task field from dataset for prompts
+        ),
+        default_prompt="Pick up the crumpets.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=384,  # <-- You requested batch_size 384
+),
+
 TrainConfig(
 
     
@@ -766,7 +790,28 @@ TrainConfig(
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
     ),
-
+# https://huggingface.co/datasets/HumanoidTeam/QuaversAnastacia24040802
+TrainConfig(
+    name="pi0_fast_rainbow_poc_quavers_anastacia_250t_128bz",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,  # Rainbow has 16 action dimensions
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/QuaversAnastacia24040802",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=False,  # Use task field from dataset for prompts
+        ),
+        default_prompt="Pick up the bag of chips.",
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=128,
+),
     # HumanoidTeam/cans_pick_one_amazon
     TrainConfig(
         name="pi0_toilet_pp",
