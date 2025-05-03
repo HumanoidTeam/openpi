@@ -442,6 +442,29 @@ _CONFIGS = [
     #
     # Inference Aloha configs.
     #
+# https://huggingface.co/datasets/HumanoidTeam/after_eight_deea_and_quality_street_arjun
+TrainConfig(
+    name="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,
+        ),
+        
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=384,
+),
+
     # https://huggingface.co/datasets/HumanoidTeam/AfterEightSlowDeea29042256
 TrainConfig(
     name="pi0_fast_rainbow_poc_aftereightslow_deea_250t_192bz",
