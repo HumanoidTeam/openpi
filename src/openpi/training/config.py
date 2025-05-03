@@ -436,144 +436,130 @@ class TrainConfig:
         if self.resume and self.overwrite:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
-
-# Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
-    #
-    # Inference Aloha configs.
-    #
-<<<<<<< HEAD
-# https://huggingface.co/datasets/HumanoidTeam/after_eight_deea_and_quality_street_arjun
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
-=======
 
-# https://huggingface.co/datasets/HumanoidTeam/HotCrossBunsDeea02051134
-TrainConfig(
-    name="pi0_fast_rainbow_poc_hotcrossbuns_deea_250t_128bz_h100",  # <-- renamed
->>>>>>> 18e1fb5 (misc)
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfig(
-<<<<<<< HEAD
-        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
+    # After Eight + Quality Street (128 batch, H200)
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
         ),
-        
-=======
-        repo_id="HumanoidTeam/HotCrossBunsDeea02051134",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
         ),
-        default_prompt="Pick up the hot cross buns.",
->>>>>>> 18e1fb5 (misc)
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=120_000,
-<<<<<<< HEAD
-    batch_size=384,
-),
-
-=======
-    batch_size=128,
-),
-
-    
->>>>>>> 18e1fb5 (misc)
-    # https://huggingface.co/datasets/HumanoidTeam/AfterEightSlowDeea29042256
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereightslow_deea_250t_192bz",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,  # Rainbow has 16 action dimensions
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/AfterEightSlowDeea29042256",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
         ),
-        default_prompt="Pick up the After Eight box.",
+        num_train_steps=120_000,
+        batch_size=384,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=120_000,
-    batch_size=192,
-),
 
-
-    
-   
-# https://huggingface.co/datasets/HumanoidTeam/CrumpetsDeea24041939
-TrainConfig(
-    name="pi0_fast_lora_crumpets_250t_192bz_h100",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/CrumpetsDeea24041939",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,
+    # After Eight Slow (192 batch)
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_aftereightslow_deea_250t_192bz",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
         ),
-        default_prompt="Pick up the crumpets.",
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=60_000,
-    batch_size=192,
-    freeze_filter=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ).get_freeze_filter(),
-    ema_decay=None,
-),
-<<<<<<< HEAD
-    
-# https://huggingface.co/datasets/HumanoidTeam/QualityStreetCoderArjun23041011
-=======
-
->>>>>>> 18e1fb5 (misc)
-
-
-TrainConfig(
-
-    
-    name="pi0_fast_rainbow_poc_qualitystreetcoder_arjun",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,  # Rainbow has 16 action dimensions
-        action_horizon=50,  # <-- 50 action horizon as you requested
-        max_token_len=250,  # <-- 250 tokens
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/QualityStreetCoderArjun23041011",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,  # Use task field from dataset for prompts
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/AfterEightSlowDeea29042256",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,
+            ),
+            default_prompt="Pick up the After Eight box.",
         ),
-        default_prompt="Pick up the colorful octagonal candy tin.",
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=120_000,
+        batch_size=192,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+
+    # Crumpets (384 batch)
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_crumpets_deea_250t_384bz",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/CrumpetsDeea24041939",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,
+            ),
+            default_prompt="Pick up the crumpets.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=120_000,
+        batch_size=384,
     ),
-    num_train_steps=120_000,  # <-- 120k training steps
-),
+
+    # Crumpets with LoRA on H100 (192 batch, paligemma variant)
+    TrainConfig(
+        name="pi0_fast_lora_crumpets_250t_192bz_h100",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/CrumpetsDeea24041939",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,
+            ),
+            default_prompt="Pick up the crumpets.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=60_000,
+        batch_size=192,
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+    ),
+
+    # Quality Street
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_qualitystreetcoder_arjun",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/QualityStreetCoderArjun23041011",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,
+            ),
+            default_prompt="Pick up the colorful octagonal candy tin.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=120_000,
+        batch_size=192,
+    ),
+
     TrainConfig(
         name="pi0_aloha",
         model=pi0.Pi0Config(),
