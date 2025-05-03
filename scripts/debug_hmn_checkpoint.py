@@ -25,6 +25,10 @@ Example with HuggingFace dataset:
   python scripts/debug_hmn_checkpoint.py --checkpoint_path ./checkpoints/pi0_fast_rainbow_poc_crumpets_deea_250t_384bz/pi0_crumpets_deea_250t_384bz_h200_8x/33000/params --hf_dataset HumanoidTeam/AfterEightDeea23041956 --num_episodes 5
 """
 
+# Temporarily disable type checking to avoid issues with the model loading
+import os
+os.environ["BEARTYPE_VALIDATOR"] = "0"
+
 import argparse
 import logging
 import numpy as np
@@ -37,7 +41,13 @@ import time
 import os
 from collections import defaultdict
 from datasets import load_dataset
-import tensorflow as tf
+# Make tensorflow an optional import
+try:
+    import tensorflow as tf
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
+    print("TensorFlow not available - HuggingFace dataset features will be limited")
 
 from openpi.models import model as _model
 from openpi.models import pi0_fast
@@ -60,6 +70,49 @@ RAINBOW_CONFIG = {
     "camera_shape": (480, 640, 3),  # Original camera capture dimensions
     "model_image_shape": (224, 224, 3),  # Resized shape for model input
 }
+
+# Create a simple class that acts like Observation but doesn't use type checking
+class SimpleObservation:
+    def __init__(self, images, image_masks, state, tokenized_prompt=None, 
+                 tokenized_prompt_mask=None, token_ar_mask=None, token_loss_mask=None):
+        self.images = images
+        self.image_masks = image_masks
+        self.state = state
+        self.tokenized_prompt = tokenized_prompt
+        self.tokenized_prompt_mask = tokenized_prompt_mask
+        self.token_ar_mask = token_ar_mask
+        self.token_loss_mask = token_loss_mask
+
+# Monkey patch the Pi0FAST sample_actions method to work with our SimpleObservation
+original_sample_actions = pi0_fast.Pi0FAST.sample_actions
+
+def patched_sample_actions(self, rng, observation):
+    """Patched version of sample_actions that converts SimpleObservation to an observation dict."""
+    if isinstance(observation, SimpleObservation):
+        observation_dict = {
+            "state": jax.numpy.asarray(observation.state),
+            "images": {k: jax.numpy.asarray(v) for k, v in observation.images.items()},
+            "image_masks": {k: jax.numpy.asarray(v) for k, v in observation.image_masks.items()},
+            "tokenized_prompt": jax.numpy.asarray(observation.tokenized_prompt),
+            "tokenized_prompt_mask": jax.numpy.asarray(observation.tokenized_prompt_mask),
+            "token_ar_mask": jax.numpy.asarray(observation.token_ar_mask),
+            "token_loss_mask": jax.numpy.asarray(observation.token_loss_mask),
+        }
+        # Now create a real Observation
+        real_observation = _model.Observation(
+            images=observation_dict["images"],
+            image_masks=observation_dict["image_masks"],
+            state=observation_dict["state"],
+            tokenized_prompt=observation_dict["tokenized_prompt"],
+            tokenized_prompt_mask=observation_dict["tokenized_prompt_mask"],
+            token_ar_mask=observation_dict["token_ar_mask"],
+            token_loss_mask=observation_dict["token_loss_mask"],
+        )
+        return original_sample_actions(self, rng, real_observation)
+    return original_sample_actions(self, rng, observation)
+
+# Apply the monkey patch
+pi0_fast.Pi0FAST.sample_actions = patched_sample_actions
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Debug Pi0_HMN checkpoint (Humanoid/Rainbow defaults)")
@@ -122,21 +175,14 @@ def load_checkpoint(checkpoint_path: str, action_dim: int, action_horizon: int, 
     
     # Load checkpoint params
     try:
+        # Load the parameters from the checkpoint
         params = _model.restore_params(
             download.maybe_download(checkpoint_path),
             restore_type=np.ndarray
         )
         
-        # Create model with loaded params
-        try:
-            # For newer JAX versions
-            model = model.replace_vars(params)
-        except AttributeError:
-            # Fallback for older JAX versions
-            model_def, state = jax.tree_util.tree_flatten(model)
-            state_dict = jax.tree_util.tree_leaves(params)
-            model = jax.tree_util.tree_unflatten(model_def, state_dict)
-        
+        # Use the config's load method which is the standard way to load models
+        model = config.load(params)
         logger.info("Successfully loaded checkpoint")
         return model, config
     except Exception as e:
@@ -148,7 +194,7 @@ def prepare_sample_input(
     prompt: str,
     sample_state: bool = False,
     camera_keys: List[str] = None
-) -> Tuple[Dict, FASTTokenizer]:
+) -> Tuple[SimpleObservation, FASTTokenizer]:
     """Prepare a sample input for the model, using Rainbow camera naming conventions."""
     # Create tokenizer
     tokenizer = FASTTokenizer(max_len=config.max_token_len)
@@ -166,21 +212,26 @@ def prepare_sample_input(
     if camera_keys is None:
         camera_keys = RAINBOW_CONFIG["camera_keys"]
     
-    # Create observation dict with Rainbow-specific image keys
-    # Note: We use model_image_shape here as this is what the model expects after the transform pipeline
-    observation = {
-        "state": state,
-        "images": {
-            key: np.zeros(RAINBOW_CONFIG["model_image_shape"], dtype=np.uint8) for key in camera_keys
-        },
-        "image_masks": {
-            key: np.array(True) for key in camera_keys
-        },
-        "tokenized_prompt": tokens[None, :],  # Add batch dimension
-        "tokenized_prompt_mask": token_mask[None, :],
-        "token_ar_mask": ar_mask[None, :],
-        "token_loss_mask": loss_mask[None, :],
+    # Create images and masks dictionaries
+    images = {
+        key: np.zeros(RAINBOW_CONFIG["model_image_shape"], dtype=np.float32) * 2.0 - 1.0
+        for key in camera_keys
     }
+    
+    image_masks = {
+        key: np.array(True) for key in camera_keys
+    }
+    
+    # Create observation using our SimpleObservation class
+    observation = SimpleObservation(
+        images=images,
+        image_masks=image_masks,
+        state=state,
+        tokenized_prompt=tokens[None, :],  # Add batch dimension
+        tokenized_prompt_mask=token_mask[None, :],
+        token_ar_mask=ar_mask[None, :],
+        token_loss_mask=loss_mask[None, :],
+    )
     
     return observation, tokenizer
 
@@ -409,23 +460,26 @@ def test_on_hf_episode(
         else:
             state = state[:action_dim]
     
-    # Create observation dict
-    observation = {
-        "state": state,
-        "images": {
-            # Use empty images for now - in a real setup you'd use the actual images
-            # Note: We use model_image_shape here as this is what the model expects after the transform pipeline
-            key: np.zeros(RAINBOW_CONFIG["model_image_shape"], dtype=np.uint8) 
-            for key in RAINBOW_CONFIG["camera_keys"]
-        },
-        "image_masks": {
-            key: np.array(True) for key in RAINBOW_CONFIG["camera_keys"]
-        },
-        "tokenized_prompt": tokens[None, :],  # Add batch dimension
-        "tokenized_prompt_mask": token_mask[None, :],
-        "token_ar_mask": ar_mask[None, :],
-        "token_loss_mask": loss_mask[None, :],
+    # Create images and masks dictionaries
+    images = {
+        key: np.zeros(RAINBOW_CONFIG["model_image_shape"], dtype=np.float32) * 2.0 - 1.0
+        for key in RAINBOW_CONFIG["camera_keys"]
     }
+    
+    image_masks = {
+        key: np.array(True) for key in RAINBOW_CONFIG["camera_keys"]
+    }
+    
+    # Create observation using SimpleObservation
+    observation = SimpleObservation(
+        images=images,
+        image_masks=image_masks,
+        state=state,
+        tokenized_prompt=tokens[None, :],  # Add batch dimension
+        tokenized_prompt_mask=token_mask[None, :],
+        token_ar_mask=ar_mask[None, :],
+        token_loss_mask=loss_mask[None, :],
+    )
     
     # Sample actions from the model
     key = jax.random.key(0)
@@ -487,6 +541,10 @@ def test_on_hf_episode(
 def main():
     args = parse_args()
     
+    # Warn if TensorFlow is not available but HuggingFace dataset is requested
+    if args.hf_dataset and not TENSORFLOW_AVAILABLE:
+        logger.warning("TensorFlow not available - some HuggingFace dataset features may not work properly")
+    
     # Create output directory if needed
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -521,18 +579,17 @@ def main():
         debug_info["num_episodes"] = args.num_episodes
         debug_info["episode_offset"] = args.episode_offset
         
+        episodes = load_hf_dataset(
+            args.hf_dataset, 
+            args.num_episodes, 
+            args.episode_offset,
+            args.task_prompt_key
+        )
+        
         # Create tokenizer for dataset testing
         tokenizer = FASTTokenizer(max_len=config.max_token_len)
         
         try:
-            # Load episodes from dataset
-            episodes = load_hf_dataset(
-                args.hf_dataset, 
-                args.num_episodes, 
-                args.episode_offset,
-                args.task_prompt_key
-            )
-            
             # Test on each episode
             episode_results = []
             for episode in episodes:
