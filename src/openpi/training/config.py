@@ -438,6 +438,28 @@ class TrainConfig:
 
 _CONFIGS = [
 
+    # https://huggingface.co/datasets/HumanoidTeam/your_4_task_dataset
+TrainConfig(
+    name="pi0_fast_multitask_4skills_250t_512bz_h200",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/your_4_task_dataset",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,  # <-- Read prompts from dataset files
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=512,
+),
+
     # After Eight + Quality Street (128 batch, H200)
     TrainConfig(
         name="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
@@ -623,6 +645,8 @@ _CONFIGS = [
     # For your own dataset, you can copy this class and modify the dataset name, and data transforms based on
     # the comments below.
     TrainConfig(
+
+
         # Change the name to reflect your model and dataset.
         name="pi0_libero",
         # Here you define the model config -- In this example we use pi0 as the model
