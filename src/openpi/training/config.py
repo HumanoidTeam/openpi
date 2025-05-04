@@ -447,7 +447,7 @@ TrainConfig(
         max_token_len=250,
     ),
     data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/your_4_task_dataset",
+        repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
         base_config=DataConfig(
             local_files_only=False,
             prompt_from_task=True,  # <-- Read prompts from dataset files
