@@ -413,7 +413,7 @@ class TrainConfig:
     # device memory will be reduced but training could potentially be slower.
     # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
     # data parallel between 2 groups of devices.
-    fsdp_devices: int = 8
+    fsdp_devices: int = 1
 
     @property
     def assets_dirs(self) -> pathlib.Path:
@@ -437,6 +437,37 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 _CONFIGS = [
+
+    # https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
+TrainConfig(
+    name="pi0_fast_lora_multitask_4skills_250t_256bz_h100",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+        paligemma_variant="gemma_2b_lora",
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,  # <-- Read prompts from dataset files
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=60_000,
+    batch_size=256,
+    num_workers=8,  # Increased for faster data loading
+    freeze_filter=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+        paligemma_variant="gemma_2b_lora",
+    ).get_freeze_filter(),
+    ema_decay=None,
+),
 
     # https://huggingface.co/datasets/HumanoidTeam/your_4_task_dataset
 TrainConfig(
