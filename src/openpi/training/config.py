@@ -438,7 +438,7 @@ class TrainConfig:
 
 _CONFIGS = [
 
-    # https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
+# https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
 TrainConfig(
     name="pi0_fast_lora_multitask_4skills_250t_256bz_h100",
     model=pi0_fast.Pi0FASTConfig(
@@ -467,8 +467,7 @@ TrainConfig(
         paligemma_variant="gemma_2b_lora",
     ).get_freeze_filter(),
     ema_decay=None,
-),
-
+),"
     # https://huggingface.co/datasets/HumanoidTeam/your_4_task_dataset
 TrainConfig(
     name="pi0_fast_multitask_4skills_250t_512bz_h200",

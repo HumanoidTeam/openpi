@@ -53,10 +53,12 @@ def main(config_name: str, max_frames: int | None = None):
     print("Number of workers:", num_workers) 
     data_loader = _data_loader.TorchDataLoader(
         dataset,
-        local_batch_size=8,
-        num_workers=8,
+        local_batch_size=256,
+        num_workers=32,
         shuffle=shuffle,
         num_batches=num_frames,
+        pin_memory=True,       # pin memory for faster GPU transfer
+        prefetch_factor=8      # increase prefetch for reduced latency
     )
 
     keys = ["state", "actions"]
