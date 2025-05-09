@@ -467,7 +467,7 @@ TrainConfig(
         paligemma_variant="gemma_2b_lora",
     ).get_freeze_filter(),
     ema_decay=None,
-),"
+),
     # https://huggingface.co/datasets/HumanoidTeam/your_4_task_dataset
 TrainConfig(
     name="pi0_fast_multitask_4skills_250t_512bz_h200",
