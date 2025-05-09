@@ -48,17 +48,18 @@ def main(config_name: str, max_frames: int | None = None):
         num_frames = max_frames
         shuffle = True
 
-    total_cores = multiprocessing.cpu_count()
-    num_workers = max(1, int(total_cores * 0.25))
-    print("Number of workers:", num_workers) 
+    # total_cores = multiprocessing.cpu_count()
+    # num_workers = max(1, int(total_cores * 0.25))
+    # print("Number of workers:", num_workers) 
     data_loader = _data_loader.TorchDataLoader(
         dataset,
         local_batch_size=256,
-        num_workers=32,
+        num_workers=12,
         shuffle=shuffle,
         num_batches=num_frames,
-        pin_memory=True,       # pin memory for faster GPU transfer
-        prefetch_factor=8      # increase prefetch for reduced latency
+        prefetch_factor=4,
+        pin_memory=True,
+
     )
 
     keys = ["state", "actions"]

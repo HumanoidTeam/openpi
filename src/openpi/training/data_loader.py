@@ -163,6 +163,7 @@ def create_data_loader(
         num_batches=num_batches,
         num_workers=num_workers,
         seed=config.seed,
+        **dataloader_kwargs, 
     )
 
     class DataLoaderImpl(DataLoader):
@@ -191,6 +192,7 @@ class TorchDataLoader:
         num_batches: int | None = None,
         num_workers: int = 0,
         seed: int = 0,
+        **dataloader_kwargs,
     ):
         """Create a PyTorch data loader.
 
@@ -240,6 +242,7 @@ class TorchDataLoader:
             worker_init_fn=_worker_init_fn,
             drop_last=True,
             generator=generator,
+            **dataloader_kwargs,
         )
 
     @property
