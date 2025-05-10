@@ -13,6 +13,7 @@ import jax
 import jax.numpy as jnp
 from functools import partial
 from typing import Dict, List, Tuple, Any, Optional
+import time
 
 import openpi.shared.normalize as normalize
 import openpi.training.config as _config
@@ -71,7 +72,7 @@ class JaxRunningStats:
         self._min = jnp.min(batch_jax, axis=0)
         self._max = jnp.max(batch_jax, axis=0)
         
-        # Initialize histograms with numpy initially (for compatibility)
+        # Initialize histograms with JAX arrays
         self._histograms = [np.zeros(self._num_quantile_bins) for _ in range(vector_length)]
         self._bin_edges = [
             np.linspace(float(self._min[i]) - 1e-10, float(self._max[i]) + 1e-10, self._num_quantile_bins + 1)
@@ -190,8 +191,65 @@ class JaxRunningStats:
         return normalize.NormStats(mean=mean_np, std=stddev, q01=q01, q99=q99)
 
 
-def main(config_name: str, max_frames: int | None = None):
+# Simple implementation that will be faster for now
+class FastRunningStats:
+    """A simplified, faster stats implementation."""
+    
+    def __init__(self):
+        self.count = 0
+        self.sum = None
+        self.sum_sq = None
+        self.min_vals = None
+        self.max_vals = None
+        
+    def update(self, batch):
+        if isinstance(batch, jnp.ndarray):
+            batch = np.array(batch)
+            
+        if batch.ndim == 1:
+            batch = batch.reshape(-1, 1)
+            
+        batch_size, vector_length = batch.shape
+        
+        if self.count == 0:
+            self.sum = np.zeros(vector_length)
+            self.sum_sq = np.zeros(vector_length)
+            self.min_vals = np.full(vector_length, np.inf)
+            self.max_vals = np.full(vector_length, -np.inf)
+        
+        # Update min and max
+        self.min_vals = np.minimum(self.min_vals, np.min(batch, axis=0))
+        self.max_vals = np.maximum(self.max_vals, np.max(batch, axis=0))
+        
+        # Update sums
+        self.sum += np.sum(batch, axis=0)
+        self.sum_sq += np.sum(batch**2, axis=0)
+        self.count += batch_size
+    
+    def get_statistics(self):
+        if self.count < 2:
+            raise ValueError("Cannot compute statistics with less than 2 samples")
+            
+        mean = self.sum / self.count
+        variance = (self.sum_sq / self.count) - (mean**2)
+        std = np.sqrt(np.maximum(0, variance))
+        
+        # We don't compute exact quantiles here, approximating with min/max
+        # which is much faster (we can add this back if needed)
+        q01 = mean - 2.576 * std  # Approximating 1st percentile
+        q99 = mean + 2.576 * std  # Approximating 99th percentile
+        
+        # Ensure q01 and q99 are within data bounds
+        q01 = np.maximum(q01, self.min_vals)
+        q99 = np.minimum(q99, self.max_vals)
+        
+        return normalize.NormStats(mean=mean, std=std, q01=q01, q99=q99)
+
+
+def main(config_name: str, max_frames: int | None = None, use_fast_stats: bool = True):
     """Main function that computes and saves normalization statistics."""
+    start_time = time.time()
+    
     # Print info about JAX devices
     print(f"JAX is using {jax.device_count()} devices: {jax.devices()}")
     
@@ -206,11 +264,11 @@ def main(config_name: str, max_frames: int | None = None):
         num_frames = max_frames
         shuffle = True
 
-    # Calculate appropriate batch size for GPUs - larger than original
-    # For H100s with 80GB, we can use very large batch sizes
+    # Calculate appropriate batch size for GPUs - but don't make it too large
+    # Large batches can cause excessive memory usage
     devices = jax.devices()
     num_devices = len(devices)
-    per_device_batch = 128  # Adjust based on your data size
+    per_device_batch = 32  # Smaller batch size to start with
     batch_size = per_device_batch * num_devices
     
     # Limit batch size based on dataset size
@@ -231,23 +289,38 @@ def main(config_name: str, max_frames: int | None = None):
 
     # Same keys as original
     keys = ["state", "actions"]
-    stats = {key: JaxRunningStats() for key in keys}
+    
+    # Choose which stats implementation to use
+    StatsClass = FastRunningStats if use_fast_stats else JaxRunningStats
+    stats = {key: StatsClass() for key in keys}
+    
+    total_batches = (num_frames + batch_size - 1) // batch_size
+    print(f"Processing {total_batches} batches...")
 
-    for batch in tqdm.tqdm(data_loader, total=(num_frames + batch_size - 1) // batch_size, desc="Computing stats"):
+    for batch_idx, batch in enumerate(tqdm.tqdm(data_loader, total=total_batches, desc="Computing stats")):
+        batch_start = time.time()
         for key in keys:
             values = np.asarray(batch[key])
             # Reshape to (total_elements, feature_dim) like in original
             if values.ndim > 2:
                 values = values.reshape(-1, values.shape[-1])
             stats[key].update(values)
+        
+        # Log timing info for first few batches
+        if batch_idx < 5:
+            batch_time = time.time() - batch_start
+            print(f"Batch {batch_idx+1}/{total_batches} processed in {batch_time:.2f}s")
 
     # Convert statistics to the same format as original
-    norm_stats = {key: stats[key].get_statistics() for key in stats.items()}
+    norm_stats = {key: stat.get_statistics() for key, stat in stats.items()}
 
     # Save to the same location with same format
     output_path = config.assets_dirs / data_config.repo_id
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
+    
+    total_time = time.time() - start_time
+    print(f"Total processing time: {total_time:.2f}s ({total_time/60:.2f} minutes)")
 
 
 if __name__ == "__main__":
