@@ -163,7 +163,7 @@ def create_data_loader(
         num_batches=num_batches,
         num_workers=num_workers,
         seed=config.seed,
-        **dataloader_kwargs, 
+#        **dataloader_kwargs, 
     )
 
     class DataLoaderImpl(DataLoader):
