@@ -248,6 +248,7 @@ class FastRunningStats:
 
 def main(config_name: str, max_frames: int | None = None, use_fast_stats: bool = True):
     """Main function that computes and saves normalization statistics."""
+    max_time_minutes = 120  # Maximum runtime in minutes
     start_time = time.time()
     
     # Print info about JAX devices
@@ -311,13 +312,30 @@ def main(config_name: str, max_frames: int | None = None, use_fast_stats: bool =
             batch_time = time.time() - batch_start
             print(f"Batch {batch_idx+1}/{total_batches} processed in {batch_time:.2f}s")
 
+        if batch_idx >= total_batches:
+            print("Reached target number of batches, stopping.")
+            break
+        
+        if (time.time() - start_time) > (max_time_minutes * 60):
+            print(f"Reached maximum runtime of {max_time_minutes} minutes, stopping.")
+            break
+
     # Convert statistics to the same format as original
     norm_stats = {key: stat.get_statistics() for key, stat in stats.items()}
 
-    # Save to the same location with same format
+    # After calculating stats and before saving
+    # Create directory if it doesn't exist
     output_path = config.assets_dirs / data_config.repo_id
-    print(f"Writing stats to: {output_path}")
-    normalize.save(output_path, norm_stats)
+    os.makedirs(output_path.parent, exist_ok=True)
+
+    try:
+        # Save to the same location with same format
+        output_path = config.assets_dirs / data_config.repo_id
+        print(f"Writing stats to: {output_path}")
+        normalize.save(output_path, norm_stats)
+        print(f"Stats successfully saved to {output_path}")
+    except Exception as e:
+        print(f"Error saving stats: {e}")
     
     total_time = time.time() - start_time
     print(f"Total processing time: {total_time:.2f}s ({total_time/60:.2f} minutes)")
