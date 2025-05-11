@@ -74,9 +74,6 @@ class RainbowInputs(transforms.DataTransformFn):
         wrist_image = _parse_image(data["observation.image.wrist_right"])
 
 
-
-        
-        
         # Verify image dimensions
         if base_image.shape != (480, 640, 3) or wrist_image.shape != (480, 640, 3):
             raise ValueError(

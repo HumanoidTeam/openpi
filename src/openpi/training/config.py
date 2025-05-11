@@ -438,6 +438,43 @@ class TrainConfig:
 
 _CONFIGS = [
 
+TrainConfig(
+    name="pi0_fast_lora_tuned_lr_4skills",
+    exp_name="exp_pi0_fast_lora_tuned_lr_4skills",  # ← Required or will raise ValueError
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+        paligemma_variant="gemma_2b_lora",
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    freeze_filter=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+        paligemma_variant="gemma_2b_lora",
+    ).get_freeze_filter(),
+    lr_schedule=_optimizer.CosineDecaySchedule(
+        warmup_steps=500,
+        peak_lr=5e-5,
+        decay_steps=30000,
+        decay_lr=5e-6,
+    ),
+    ema_decay=None,
+    batch_size=256,
+    num_train_steps=60_000,
+    num_workers=8,
+)
+,
 # https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
 TrainConfig(
     name="pi0_fast_lora_multitask_4skills_250t_256bz_h100",
