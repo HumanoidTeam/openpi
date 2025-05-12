@@ -474,7 +474,7 @@ TrainConfig(
     batch_size=256,
     num_train_steps=60_000,
     num_workers=8,
-)
+),
 
 TrainConfig(
     name="pi0_fast_lora_tuned_lr_4skills",
