@@ -12,6 +12,7 @@ import etils.epath as epath
 import flax.nnx as nnx
 from typing_extensions import override
 import tyro
+import numpy as np
 
 import openpi.models.model as _model
 import openpi.models.pi0 as pi0
@@ -355,20 +356,6 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        # Create custom Rainbow inputs with image rotation
-        class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
-            def __call__(self, data: dict) -> dict:
-                # Get the head image before standard processing
-                if "observation.image.head" in data:
-                    # Rotate image using NumPy (more consistent with codebase)
-                    img = np.asarray(data["observation.image.head"])
-                    # 180 degree rotation = flip both horizontally and vertically
-                    data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
-                
-                # Call the parent method to do the standard processing
-                return super().__call__(data)
-        
-        # Use our custom inputs class instead of the standard one
         data_transforms = _transforms.Group(
             inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim)],
             outputs=[rainbow_policy.RainbowOutputs()],
@@ -383,6 +370,21 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
             action_sequence_keys=self.action_sequence_keys,
         )
 
+
+# Define this class at module level, not inside a method
+class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
+    """Rainbow inputs with 180-degree rotation of the head camera image."""
+    
+    def __call__(self, data: dict) -> dict:
+        # Get the head image before standard processing
+        if "observation.image.head" in data:
+            # Rotate image using NumPy (more consistent with codebase)
+            img = np.asarray(data["observation.image.head"])
+            # 180 degree rotation = flip both horizontally and vertically
+            data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
+        
+        # Call the parent method to do the standard processing
+        return super().__call__(data)
 
 
 @dataclasses.dataclass(frozen=True)
