@@ -355,13 +355,23 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        # Create standard transform chain but insert rotation first
+        # Create custom Rainbow inputs with image rotation
+        class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
+            def __call__(self, data: dict) -> dict:
+                # Get the head image before standard processing
+                if "observation.image.head" in data:
+                    # Rotate image using NumPy (more consistent with codebase)
+                    img = np.asarray(data["observation.image.head"])
+                    # 180 degree rotation = flip both horizontally and vertically
+                    data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
+                
+                # Call the parent method to do the standard processing
+                return super().__call__(data)
+        
+        # Use our custom inputs class instead of the standard one
         data_transforms = _transforms.Group(
-            inputs=[
-                _transforms.ImageRotate180("observation.image.head"),
-                rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)
-            ],
-            outputs=[rainbow_policy.RainbowOutputs()]
+            inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim)],
+            outputs=[rainbow_policy.RainbowOutputs()],
         )
         
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
@@ -372,6 +382,7 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
+
 
 
 @dataclasses.dataclass(frozen=True)
