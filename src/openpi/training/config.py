@@ -486,7 +486,7 @@ TrainConfig(
         paligemma_variant="gemma_2b_lora",
     ),
     data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
+        repo_id="HumanoidTeam/six_skills_v2",
         base_config=DataConfig(
             local_files_only=False,
             prompt_from_task=True,
