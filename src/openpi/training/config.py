@@ -347,6 +347,31 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
+    
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
+    """Data config for Rainbow robot with 180-degree rotated head camera."""
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # Create standard transform chain but insert rotation first
+        data_transforms = _transforms.Group(
+            inputs=[
+                _transforms.ImageRotate180("observation.image.head"),
+                rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)
+            ],
+            outputs=[rainbow_policy.RainbowOutputs()]
+        )
+        
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+        
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
+        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -437,6 +462,30 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 _CONFIGS = [
+
+    # After Eight + Quality Street with 180-degree rotated head camera
+TrainConfig(
+    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_480bz",
+    exp_name="exp_rotated_head",  # Add an experiment name
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfigRotated(  # Using the new rotated config
+        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=480,  # Using your tested batch size for H100
+    num_workers=8,  # Increased for faster data loading
+),
 
 # https://huggingface.co/datasets/HumanoidTeam/five_tasks_08_05_25
 TrainConfig(
