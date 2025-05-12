@@ -442,14 +442,23 @@ def _assert_quantile_stats(norm_stats: at.PyTree[NormStats]) -> None:
                 f"quantile stats must be provided if use_quantile_norm is True. Key {k} is missing q01 or q99."
             )
 
-
 @dataclasses.dataclass(frozen=True)
 class ImageRotate180(DataTransformFn):
     """Rotates specific image by 180 degrees."""
     image_key: str
 
     def __call__(self, data: DataDict) -> DataDict:
-        import cv2  # Import here to avoid global dependency
-        if self.image_key in data:
-            data[self.image_key] = cv2.rotate(data[self.image_key], cv2.ROTATE_180)
-        return data
+        import cv2
+        
+        # Convert to flattened dictionary for easier access
+        flat_data = flatten_dict(data)
+        
+        # Check if the key exists in the flattened dictionary
+        if self.image_key in flat_data:
+            # Make sure we're getting a numpy array
+            img = np.asarray(flat_data[self.image_key])
+            # Rotate the image
+            flat_data[self.image_key] = cv2.rotate(img, cv2.ROTATE_180)
+        
+        # Convert back to nested dictionary
+        return unflatten_dict(flat_data)
