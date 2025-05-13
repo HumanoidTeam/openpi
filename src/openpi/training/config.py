@@ -534,7 +534,7 @@ TrainConfig(
     ),
     ema_decay=None,
     batch_size=256,
-    num_train_steps=60_000,
+    num_train_steps=120_000,
     num_workers=8,
 ),
 
