@@ -562,7 +562,7 @@ TrainConfig(
         action_horizon=50,
         max_token_len=250,
         paligemma_variant="gemma_2b_lora",
-    ).get_freeze_filter(),s
+    ).get_freeze_filter(),
     lr_schedule=_optimizer.CosineDecaySchedule(
         warmup_steps=500,
         peak_lr=5e-5,
