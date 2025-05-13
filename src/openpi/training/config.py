@@ -451,6 +451,24 @@ _CONFIGS = [
         ),
     ),
     TrainConfig(
+        name="pi0_fast_rainbow_poc_3_items",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Crumpets_and_HotCrossBuns__Deea",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the crumpets.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=50_000,
+    ),
+    TrainConfig(
         name="pi0_aloha_towel",
         model=pi0.Pi0Config(),
         data=LeRobotAlohaDataConfig(
