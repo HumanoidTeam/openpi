@@ -623,7 +623,7 @@ TrainConfig(
     weight_loader=weight_loaders.CheckpointWeightLoader(
         "s3://openpi-assets/checkpoints/pi0_fast_base/params"
     ),
-    num_train_steps=120_000,
+    num_train_steps=60_000,
     batch_size=512,
 ),
 
