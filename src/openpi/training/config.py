@@ -507,7 +507,7 @@ TrainConfig(
     num_train_steps=60_000,
     num_workers=8,
 )
-
+,
     # After Eight + Quality Street with 180-degree rotated head camera
 TrainConfig(
     name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_480bz",
