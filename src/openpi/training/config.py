@@ -475,6 +475,47 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 _CONFIGS = [
+    # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
+TrainConfig(
+    name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
+    exp_name="exp_rotated_head_lora",          # new experiment name
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+        paligemma_variant="gemma_2b_lora",     # ← LoRA enabled
+    ),
+    data=LeRobotRainbowDataConfigRotated(
+        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+
+    # Freeze everything except the LoRA adapters & layer-norms
+    freeze_filter=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+        paligemma_variant="gemma_2b_lora",
+    ).get_freeze_filter(),
+
+    # Same tuned cosine schedule you used in the 5-skills run
+    lr_schedule=_optimizer.CosineDecaySchedule(
+        warmup_steps=500,
+        peak_lr=5e-5,
+        decay_steps=30000,
+        decay_lr=5e-6,
+    ),
+    ema_decay=None,           # keep EMA off for LoRA
+    batch_size=512,
+    num_train_steps=120_000,
+    num_workers=8,
+),
 
     # https://huggingface.co/datasets/HumanoidTeam/VLA_merged_7tasks_100_episodes_v1_13052025
 TrainConfig(
