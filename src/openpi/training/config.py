@@ -511,7 +511,7 @@ TrainConfig(
     # After Eight + Quality Street with 180-degree rotated head camera
 TrainConfig(
     name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_480bz",
-    exp_name="exp_rotated_head",  # Add an experiment name
+    exp_name="exp_rotated_head_fix",  # Add an experiment name
     model=pi0_fast.Pi0FASTConfig(
         action_dim=16,
         action_horizon=50,
@@ -528,7 +528,7 @@ TrainConfig(
         "s3://openpi-assets/checkpoints/pi0_fast_base/params"
     ),
     num_train_steps=120_000,
-    batch_size=480,  # Using your tested batch size for H100
+    batch_size=256,  # Using your tested batch size for H100
     num_workers=8,  # Increased for faster data loading
 ),
 
