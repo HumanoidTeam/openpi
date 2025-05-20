@@ -215,7 +215,8 @@ def main():
         timeout_keep_alive=60,
         ws_ping_interval=5,
         ws_ping_timeout=20,
-        log_level="info"
+        log_level="info",
+        ws_max_size=104857600  # 100MB in bytes
     )
 
 if __name__ == "__main__":
