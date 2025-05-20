@@ -381,7 +381,7 @@ class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
             # Rotate image using NumPy (more consistent with codebase)
             img = np.asarray(data["observation.image.head"])
             # 180 degree rotation = flip both horizontally and vertically
-            data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
+            data["observation.image.head"] = np.flip(np.flip(img, axis=1), axis=2)
         
         # Call the parent method to do the standard processing
         return super().__call__(data)
