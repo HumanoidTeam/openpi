@@ -510,7 +510,7 @@ TrainConfig(
 ,
     # After Eight + Quality Street with 180-degree rotated head camera
 TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_480bz",
+    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
     exp_name="exp_rotated_head_fix",  # Add an experiment name
     model=pi0_fast.Pi0FASTConfig(
         action_dim=16,
