@@ -27,6 +27,7 @@ import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
 import openpi.policies.rainbow_policy as rainbow_policy
+from openpi.policies.rainbow_policy import RainbowInputs8DOF, RainbowOutputs8DOF
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -547,8 +548,7 @@ TrainConfig(
     batch_size=256,
     num_train_steps=100_000,
     num_workers=8,
-)
-,
+),
     # After Eight + Quality Street with 180-degree rotated head camera
 TrainConfig(
     name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
@@ -646,9 +646,8 @@ TrainConfig(
     batch_size=256,
     num_train_steps=250_000,
     num_workers=8,
-)
-,
-# https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
+),
+    # https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
 TrainConfig(
     name="pi0_fast_lora_multitask_4skills_250t_256bz_h100",
     model=pi0_fast.Pi0FASTConfig(
@@ -697,7 +696,6 @@ TrainConfig(
         "s3://openpi-assets/checkpoints/pi0_fast_base/params"
     ),
     num_train_steps=60_000,
-    batch_size=512,
 ),
 
     # After Eight + Quality Street (128 batch, H200)
@@ -789,7 +787,6 @@ TrainConfig(
             "s3://openpi-assets/checkpoints/pi0_fast_base/params"
         ),
         num_train_steps=60_000,
-        batch_size=192,
         freeze_filter=pi0_fast.Pi0FASTConfig(
             action_dim=16,
             action_horizon=50,
@@ -1374,6 +1371,34 @@ TrainConfig(
         exp_name="debug",
         num_train_steps=10,
         wandb_enabled=False,
+    ),
+    # Add this new config to the _CONFIGS list
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_aftereight_qs_rotated_8dof_180t_256bz",
+        exp_name="exp_rotated_head_8dof",  # New experiment name
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=8,  # Changed from 16 to 8 for single arm
+            action_horizon=50,
+            max_token_len=180,  # Reduced from 250 to 180 since we have fewer DOFs
+        ),
+        data=LeRobotRainbowDataConfigRotated(  # Keep the rotated config
+            repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+            # Add custom data transforms for 8-DOF
+            data_transforms=_transforms.Group(
+                inputs=[RainbowInputs8DOF(action_dim=8)],
+                outputs=[RainbowOutputs8DOF()],
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=120_000,
+        batch_size=256,  # Keep the same batch size
+        num_workers=8,  # Keep the same number of workers
     ),
 ]
 

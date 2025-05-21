@@ -116,3 +116,64 @@ class RainbowOutputs(transforms.DataTransformFn):
         return {"actions": np.asarray(data["actions"][:, :16])}
 
 
+@dataclasses.dataclass(frozen=True)
+class RainbowInputs8DOF(RainbowInputs):
+    """Data transformation for the Rainbow robot with 8-DOF (single arm).
+    Converts raw dataset inputs into the model's expected format.
+    
+    Expected keys in the input dictionary:
+      - "observation.state": an 8-dimensional array (float64) for single arm.
+      - "observation.image.head": an image array (480x640x3).
+      - "observation.image.wrist_right": an image array (480x640x3).
+      - "prompt": a string instruction.
+      - "action": an 8-dimensional array (float64).
+    """
+    action_dim: int  # For single arm Rainbow, set this to 8
+
+    def __call__(self, data: dict) -> dict:
+        # Process the proprioceptive state - only use first 8 dimensions
+        state = data["observation.state"][:8]  # Take only first 8 DOFs
+        
+        # Process the images
+        base_image = _parse_image(data["observation.image.head"])
+        wrist_image = _parse_image(data["observation.image.wrist_right"])
+
+        # Verify image dimensions
+        if base_image.shape != (480, 640, 3) or wrist_image.shape != (480, 640, 3):
+            raise ValueError(
+                f"Expected image shapes (480, 640, 3), got {base_image.shape} and {wrist_image.shape}"
+            )
+        
+        inputs = {
+            "state": state,
+            "image": {
+                "base_0_rgb": base_image,
+                "wrist_right_0_rgb": wrist_image,
+            },
+            "image_mask": {
+                "base_0_rgb": np.True_,
+                "wrist_right_0_rgb": np.True_,
+            },
+        }
+
+        if "actions" in data:
+            # Only take first 8 dimensions of actions
+            inputs["actions"] = data["actions"][:, :8]
+        elif "action" in data:
+            inputs["actions"] = data["action"][:8]
+            
+        # Add prompt if available
+        if "prompt" in data:
+            inputs["prompt"] = data["prompt"]
+        
+        return inputs
+
+
+@dataclasses.dataclass(frozen=True)
+class RainbowOutputs8DOF(RainbowOutputs):
+    """Converts model outputs back to the Rainbow dataset format for 8-DOF."""
+    def __call__(self, data: dict) -> dict:
+        # Only return the first 8 dimensions
+        return {"actions": np.asarray(data["actions"][:, :8])}
+
+
