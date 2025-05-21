@@ -389,6 +389,27 @@ class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
 
 
 @dataclasses.dataclass(frozen=True)
+class LeRobotRainbowDataConfigRotated8DOF(LeRobotRainbowDataConfigRotated):
+    """Data config for Rainbow robot with 180-degree rotated head camera and 8-DOF."""
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[RainbowInputs8DOF(action_dim=model_config.action_dim)],
+            outputs=[RainbowOutputs8DOF()],
+        )
+        
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+        
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs),
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=self.action_sequence_keys,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
 class TrainConfig:
     # Name of the config. Must be unique. Will be used to reference this config.
     name: tyro.conf.Suppress[str]
@@ -1381,16 +1402,11 @@ TrainConfig(
             action_horizon=50,
             max_token_len=180,  # Reduced from 250 to 180 since we have fewer DOFs
         ),
-        data=LeRobotRainbowDataConfigRotated(  # Keep the rotated config
+        data=LeRobotRainbowDataConfigRotated8DOF(  # Use the new 8-DOF config class
             repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
             base_config=DataConfig(
                 local_files_only=False,
                 prompt_from_task=True,
-            ),
-            # Add custom data transforms for 8-DOF
-            data_transforms=_transforms.Group(
-                inputs=[RainbowInputs8DOF(action_dim=8)],
-                outputs=[RainbowOutputs8DOF()],
             ),
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader(
