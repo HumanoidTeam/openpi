@@ -336,7 +336,7 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)],
+            inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
       
@@ -357,7 +357,7 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim)],
+            inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim, model_type=model_config.model_type)],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
         
@@ -381,7 +381,10 @@ class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
             # Rotate image using NumPy (more consistent with codebase)
             img = np.asarray(data["observation.image.head"])
             # 180 degree rotation = flip both horizontally and vertically
-            data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
+            # print('called here, flipping image of shape:', img.shape)
+            # data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
+            # FIX rotation
+            data["observation.image.head"] = np.flip(np.flip(img, axis=1), axis=2)
         
         # Call the parent method to do the standard processing
         return super().__call__(data)
