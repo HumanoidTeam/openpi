@@ -105,12 +105,12 @@ class RainbowInputs(transforms.DataTransformFn):
         if "actions" in data:
             # We are padding to the model action dim.
             inputs["actions"] = transforms.pad_to_dim(
-                self._get_state_short(data["actions"]), self.action_dim
+                self._get_actions_short(data["actions"]), self.action_dim
             )
             # inputs["actions"] = data["actions"]
         elif "action" in data:
             inputs["actions"] = transforms.pad_to_dim(
-                self._get_state_short(data["action"]), self.action_dim
+                self._get_actions_short(data["action"]), self.action_dim
             )
             # inputs["actions"] = data["action"]
 
@@ -128,6 +128,13 @@ class RainbowInputs(transforms.DataTransformFn):
         assert len(ret_value) == 8, f"Expected 8 elements, got {len(ret_value)}"
         return ret_value
 
+    @staticmethod
+    def _get_actions_short(actions_chunk: torch.Tensor) -> torch.Tensor:
+        # actions_chunk expected to be of shape (action_horizon, action_dim)
+        ret_value = torch.cat([actions_chunk[:, :7], actions_chunk[:, -2:-1]], dim=1)
+        assert ret_value.shape[1] == 8, f"Expected 8 elements, got {ret_value.shape[1]}"
+        return ret_value
+
 
 @dataclasses.dataclass(frozen=True)
 class RainbowOutputs(transforms.DataTransformFn):
@@ -136,8 +143,9 @@ class RainbowOutputs(transforms.DataTransformFn):
     def __call__(self, data: dict) -> dict:
         # Log available keys for debugging
         logger.debug(f"Available keys in output data: {list(data.keys())}")
-
-        return {"actions": np.asarray(data["actions"][:, :16])}
+        actions = data["actions"]
+        assert actions.shape[1] == 8, f"Expected 8 elements, got {actions.shape[1]}"
+        return {"actions": actions}
 
 
 @dataclasses.dataclass(frozen=True)
