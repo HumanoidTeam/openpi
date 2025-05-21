@@ -157,10 +157,14 @@ class DataConfigFactory(abc.ABC):
             self.base_config or DataConfig(),
             repo_id=repo_id,
             asset_id=asset_id,
-            norm_stats=self._load_norm_stats(epath.Path(self.assets.assets_dir or assets_dirs), asset_id),
+            norm_stats=self._load_norm_stats(
+                epath.Path(self.assets.assets_dir or assets_dirs), asset_id
+            ),
         )
 
-    def _load_norm_stats(self, assets_dir: epath.Path, asset_id: str | None) -> dict[str, _transforms.NormStats] | None:
+    def _load_norm_stats(
+        self, assets_dir: epath.Path, asset_id: str | None
+    ) -> dict[str, _transforms.NormStats] | None:
         if asset_id is None:
             return None
         try:
@@ -185,9 +189,13 @@ class FakeDataConfig(DataConfigFactory):
 @dataclasses.dataclass(frozen=True)
 class SimpleDataConfig(DataConfigFactory):
     # Factory for the data transforms.
-    data_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(default_factory=GroupFactory)
+    data_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(
+        default_factory=GroupFactory
+    )
     # Factory for the model transforms.
-    model_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(default_factory=ModelTransformFactory)
+    model_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(
+        default_factory=ModelTransformFactory
+    )
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
@@ -231,7 +239,11 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[aloha_policy.AlohaInputs(action_dim=model_config.action_dim, adapt_to_pi=self.adapt_to_pi)],
+            inputs=[
+                aloha_policy.AlohaInputs(
+                    action_dim=model_config.action_dim, adapt_to_pi=self.adapt_to_pi
+                )
+            ],
             outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
         )
         if self.use_delta_joint_actions:
@@ -291,7 +303,11 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
         # how to modify the transforms to match your dataset. Once you created your own transforms, you can
         # replace the transforms below with your own.
         data_transforms = _transforms.Group(
-            inputs=[libero_policy.LiberoInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
+            inputs=[
+                libero_policy.LiberoInputs(
+                    action_dim=model_config.action_dim, model_type=model_config.model_type
+                )
+            ],
             outputs=[libero_policy.LiberoOutputs()],
         )
 
@@ -325,9 +341,11 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
         )
 
+
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfig(DataConfigFactory):
     """Data config for the Rainbow robot."""
+
     """ Assumes no Pi adaptation and no delta modelization of actions"""
 
     # If provided, will be injected into the input data if the "prompt" key is not present.
@@ -337,10 +355,14 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)],
+            inputs=[
+                rainbow_policy.RainbowInputs(
+                    action_dim=model_config.action_dim, model_type=model_config.model_type
+                )
+            ],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
-      
+
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
 
         return dataclasses.replace(
@@ -349,7 +371,7 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
         )
-    
+
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
@@ -358,12 +380,16 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim)],
+            inputs=[
+                RainbowInputsWithRotation(
+                    action_dim=model_config.action_dim, model_type=model_config.model_type
+                )
+            ],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
-        
+
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
-        
+
         return dataclasses.replace(
             self.create_base_config(assets_dirs),
             data_transforms=data_transforms,
@@ -375,38 +401,20 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
 # Define this class at module level, not inside a method
 class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
     """Rainbow inputs with 180-degree rotation of the head camera image."""
-    
+
     def __call__(self, data: dict) -> dict:
         # Get the head image before standard processing
         if "observation.image.head" in data:
             # Rotate image using NumPy (more consistent with codebase)
             img = np.asarray(data["observation.image.head"])
             # 180 degree rotation = flip both horizontally and vertically
+            # print('called here, flipping image of shape:', img.shape)
+            # data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
+            # FIX rotation
             data["observation.image.head"] = np.flip(np.flip(img, axis=1), axis=2)
-        
+
         # Call the parent method to do the standard processing
         return super().__call__(data)
-
-
-@dataclasses.dataclass(frozen=True)
-class LeRobotRainbowDataConfigRotated8DOF(LeRobotRainbowDataConfigRotated):
-    """Data config for Rainbow robot with 180-degree rotated head camera and 8-DOF."""
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        data_transforms = _transforms.Group(
-            inputs=[RainbowInputs8DOF(action_dim=model_config.action_dim)],
-            outputs=[RainbowOutputs8DOF()],
-        )
-        
-        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
-        
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs),
-            data_transforms=data_transforms,
-            model_transforms=model_transforms,
-            action_sequence_keys=self.action_sequence_keys,
-        )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -424,9 +432,13 @@ class TrainConfig:
     model: _model.BaseModelConfig = dataclasses.field(default_factory=pi0.Pi0Config)
 
     # A weight loader can optionally load (possibly partial) weights from disk after the model is initialized.
-    weight_loader: weight_loaders.WeightLoader = dataclasses.field(default_factory=weight_loaders.NoOpWeightLoader)
+    weight_loader: weight_loaders.WeightLoader = dataclasses.field(
+        default_factory=weight_loaders.NoOpWeightLoader
+    )
 
-    lr_schedule: _optimizer.LRScheduleConfig = dataclasses.field(default_factory=_optimizer.CosineDecaySchedule)
+    lr_schedule: _optimizer.LRScheduleConfig = dataclasses.field(
+        default_factory=_optimizer.CosineDecaySchedule
+    )
     optimizer: _optimizer.OptimizerConfig = dataclasses.field(default_factory=_optimizer.AdamW)
     ema_decay: float | None = 0.99
 
@@ -496,229 +508,224 @@ class TrainConfig:
         if self.resume and self.overwrite:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
+
 _CONFIGS = [
     # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
-TrainConfig(
-    name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
-    exp_name="exp_rotated_head_lora",          # new experiment name
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",     # ← LoRA enabled
-    ),
-    data=LeRobotRainbowDataConfigRotated(
-        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
+    TrainConfig(
+        name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
+        exp_name="exp_rotated_head_lora",  # new experiment name
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",  # ← LoRA enabled
         ),
+        data=LeRobotRainbowDataConfigRotated(
+            repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        # Freeze everything except the LoRA adapters & layer-norms
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        # Same tuned cosine schedule you used in the 5-skills run
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,  # keep EMA off for LoRA
+        batch_size=512,
+        num_train_steps=120_000,
+        num_workers=8,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-
-    # Freeze everything except the LoRA adapters & layer-norms
-    freeze_filter=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ).get_freeze_filter(),
-
-    # Same tuned cosine schedule you used in the 5-skills run
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=500,
-        peak_lr=5e-5,
-        decay_steps=30000,
-        decay_lr=5e-6,
-    ),
-    ema_decay=None,           # keep EMA off for LoRA
-    batch_size=512,
-    num_train_steps=120_000,
-    num_workers=8,
-),
-
     # https://huggingface.co/datasets/HumanoidTeam/VLA_merged_7tasks_100_episodes_v1_13052025
-TrainConfig(
-    name="pi0_fast_finetune_7skills_250t_256bz_h100",
-    exp_name="exp_pi0_fast_finetune_7skills_250t_256bz_h100",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        # No paligemma_variant = LoRA disabled
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/VLA_merged_7tasks_100_episodes_v1_13052025",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
+    TrainConfig(
+        name="pi0_fast_finetune_7skills_250t_256bz_h100",
+        exp_name="exp_pi0_fast_finetune_7skills_250t_256bz_h100",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            # No paligemma_variant = LoRA disabled
         ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/VLA_merged_7tasks_100_episodes_v1_13052025",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=256,
+        num_train_steps=100_000,
+        num_workers=8,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=500,
-        peak_lr=5e-5,
-        decay_steps=30000,
-        decay_lr=5e-6,
-    ),
-    ema_decay=None,
-    batch_size=256,
-    num_train_steps=100_000,
-    num_workers=8,
-),
     # After Eight + Quality Street with 180-degree rotated head camera
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
-    exp_name="exp_rotated_head_fix",  # Add an experiment name
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfigRotated(  # Using the new rotated config
-        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
+        exp_name="exp_rotated_head_fix",  # Add an experiment name
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
         ),
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=120_000,
-    batch_size=256,  # Using your tested batch size for H100
-    num_workers=8,  # Increased for faster data loading
-),
-
-# https://huggingface.co/datasets/HumanoidTeam/five_tasks_08_05_25
-TrainConfig(
-    name="pi0_fast_lora_tuned_lr_5skills",
-    exp_name="exp_pi0_fast_lora_tuned_lr_5skills",  
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/five_tasks_08_05_25",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
+        data=LeRobotRainbowDataConfigRotated(  # Using the new rotated config
+            repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
         ),
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    freeze_filter=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ).get_freeze_filter(),
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=500,
-        peak_lr=5e-5,
-        decay_steps=30000,
-        decay_lr=5e-6,
-    ),
-    ema_decay=None,
-    batch_size=256,
-    num_train_steps=120_000,
-    num_workers=8,
-),
-
-TrainConfig(
-    name="pi0_fast_lora_tuned_lr_4skills",
-    exp_name="exp_pi0_fast_lora_tuned_lr_4skills",  # ← Required or will raise ValueError
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/six_skills_v2",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
         ),
+        num_train_steps=120_000,
+        batch_size=256,  # Using your tested batch size for H100
+        num_workers=8,  # Increased for faster data loading
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    # https://huggingface.co/datasets/HumanoidTeam/five_tasks_08_05_25
+    TrainConfig(
+        name="pi0_fast_lora_tuned_lr_5skills",
+        exp_name="exp_pi0_fast_lora_tuned_lr_5skills",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/five_tasks_08_05_25",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=256,
+        num_train_steps=120_000,
+        num_workers=8,
     ),
-    freeze_filter=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ).get_freeze_filter(),
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=500,
-        peak_lr=5e-5,
-        decay_steps=30000,
-        decay_lr=5e-6,
+    TrainConfig(
+        name="pi0_fast_lora_tuned_lr_4skills",
+        exp_name="exp_pi0_fast_lora_tuned_lr_4skills",  # ← Required or will raise ValueError
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/six_skills_v2",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=256,
+        num_train_steps=250_000,
+        num_workers=8,
     ),
-    ema_decay=None,
-    batch_size=256,
-    num_train_steps=250_000,
-    num_workers=8,
-),
     # https://huggingface.co/datasets/HumanoidTeam/four_tasks_dataset_03_05_25
-TrainConfig(
-    name="pi0_fast_lora_multitask_4skills_250t_256bz_h100",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,  # <-- Read prompts from dataset files
+    TrainConfig(
+        name="pi0_fast_lora_multitask_4skills_250t_256bz_h100",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
         ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,  # <-- Read prompts from dataset files
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=60_000,
+        batch_size=256,
+        num_workers=8,  # Increased for faster data loading
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=60_000,
-    batch_size=256,
-    num_workers=8,  # Increased for faster data loading
-    freeze_filter=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-        paligemma_variant="gemma_2b_lora",
-    ).get_freeze_filter(),
-    ema_decay=None,
-),
     # https://huggingface.co/datasets/HumanoidTeam/your_4_task_dataset
-TrainConfig(
-    name="pi0_fast_multitask_4skills_250t_512bz_h200",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,  # <-- Read prompts from dataset files
+    TrainConfig(
+        name="pi0_fast_multitask_4skills_250t_512bz_h200",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
         ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/four_tasks_dataset_03_05_25",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,  # <-- Read prompts from dataset files
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=60_000,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=60_000,
-),
-
     # After Eight + Quality Street (128 batch, H200)
     TrainConfig(
         name="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
@@ -740,7 +747,6 @@ TrainConfig(
         num_train_steps=120_000,
         batch_size=384,
     ),
-
     # After Eight Slow (192 batch)
     TrainConfig(
         name="pi0_fast_rainbow_poc_aftereightslow_deea_250t_192bz",
@@ -763,7 +769,6 @@ TrainConfig(
         num_train_steps=120_000,
         batch_size=192,
     ),
-
     # Crumpets (384 batch)
     TrainConfig(
         name="pi0_fast_rainbow_poc_crumpets_deea_250t_384bz",
@@ -786,7 +791,6 @@ TrainConfig(
         num_train_steps=120_000,
         batch_size=384,
     ),
-
     # Crumpets with LoRA on H100 (192 batch, paligemma variant)
     TrainConfig(
         name="pi0_fast_lora_crumpets_250t_192bz_h100",
@@ -816,7 +820,6 @@ TrainConfig(
         ).get_freeze_filter(),
         ema_decay=None,
     ),
-
     # Quality Street
     TrainConfig(
         name="pi0_fast_rainbow_poc_qualitystreetcoder_arjun",
@@ -839,7 +842,6 @@ TrainConfig(
         num_train_steps=120_000,
         batch_size=192,
     ),
-
     TrainConfig(
         name="pi0_aloha",
         model=pi0.Pi0Config(),
@@ -886,7 +888,11 @@ TrainConfig(
         data=SimpleDataConfig(
             assets=AssetsConfig(asset_id="droid"),
             data_transforms=lambda model: _transforms.Group(
-                inputs=[droid_policy.DroidInputs(action_dim=model.action_dim, model_type=ModelType.PI0_FAST)],
+                inputs=[
+                    droid_policy.DroidInputs(
+                        action_dim=model.action_dim, model_type=ModelType.PI0_FAST
+                    )
+                ],
                 outputs=[droid_policy.DroidOutputs()],
             ),
             base_config=DataConfig(
@@ -903,8 +909,6 @@ TrainConfig(
     # For your own dataset, you can copy this class and modify the dataset name, and data transforms based on
     # the comments below.
     TrainConfig(
-
-
         # Change the name to reflect your model and dataset.
         name="pi0_libero",
         # Here you define the model config -- In this example we use pi0 as the model
@@ -926,7 +930,9 @@ TrainConfig(
         ),
         # Here you define which pre-trained checkpoint you want to load to initialize the model.
         # This should match the model config you chose above -- i.e. in this case we use the pi0 base model.
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
         # Check the base TrainConfig class for a full list of available hyperparameters.
         num_train_steps=30_000,
@@ -934,7 +940,9 @@ TrainConfig(
     TrainConfig(
         name="pi0_libero_low_mem_finetune",
         # Here is an example of loading a pi0 model for LoRA fine-tuning.
-        model=pi0.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
+        model=pi0.Pi0Config(
+            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
+        ),
         data=LeRobotLiberoDataConfig(
             repo_id="physical-intelligence/libero",
             base_config=DataConfig(
@@ -942,7 +950,9 @@ TrainConfig(
                 prompt_from_task=True,
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=30_000,
         # The freeze filter defines which parameters should be frozen during training.
         # We have a convenience function in the model config that returns the default freeze filter
@@ -975,7 +985,9 @@ TrainConfig(
             ),
         ),
         # Note that we load the pi0-FAST base model checkpoint here.
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
     ),
     TrainConfig(
@@ -992,7 +1004,9 @@ TrainConfig(
                 prompt_from_task=True,
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
         # Again, make sure to match the model config above when extracting the freeze filter
         # that specifies which parameters should be frozen during LoRA finetuning.
@@ -1003,26 +1017,26 @@ TrainConfig(
         ema_decay=None,
     ),
     # https://huggingface.co/datasets/HumanoidTeam/LargeWalkersArjun24042107
-TrainConfig(
-    name="pi0_fast_rainbow_poc_largewalkers_arjun",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,  # Rainbow has 16 action dimensions
-        action_horizon=10,
-        max_token_len=180,  # Single-arm robot, so 180 should be sufficient
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/LargeWalkersArjun24042107",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,  # Use task field from dataset for prompts
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_largewalkers_arjun",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
         ),
-        default_prompt="Pick up the bag of chips.",
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/LargeWalkersArjun24042107",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the bag of chips.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=50_000,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=50_000,
-),
     #
     # Fine-tuning Aloha configs.
     #
@@ -1057,7 +1071,9 @@ TrainConfig(
                 local_files_only=False,  # Set to True for local-only datasets.
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
     #
@@ -1094,31 +1110,33 @@ TrainConfig(
                 local_files_only=False,  # Set to True for local-only datasets.
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
-# https://huggingface.co/datasets/HumanoidTeam/QuaversAnastacia24040802
-TrainConfig(
-    name="pi0_fast_rainbow_poc_quavers_anastacia_250t_128bz",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,  # Rainbow has 16 action dimensions
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/QuaversAnastacia24040802",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,  # Use task field from dataset for prompts
+    # https://huggingface.co/datasets/HumanoidTeam/QuaversAnastacia24040802
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_quavers_anastacia_250t_128bz",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=50,
+            max_token_len=250,
         ),
-        default_prompt="Pick up the bag of chips.",
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/QuaversAnastacia24040802",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the bag of chips.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=120_000,
+        batch_size=128,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=120_000,
-    batch_size=128,
-),
     # HumanoidTeam/cans_pick_one_amazon
     TrainConfig(
         name="pi0_toilet_pp",
@@ -1149,10 +1167,11 @@ TrainConfig(
                 local_files_only=False,  # Set to True for local-only datasets.
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
-
     # HumanoidTeam/stack
     TrainConfig(
         name="pi0_stack",
@@ -1183,10 +1202,11 @@ TrainConfig(
                 local_files_only=False,  # Set to True for local-only datasets.
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=40_000,
     ),
-
     # HumanoidTeam/stack
     TrainConfig(
         name="pi0_clean_plate",
@@ -1217,53 +1237,53 @@ TrainConfig(
                 local_files_only=False,  # Set to True for local-only datasets.
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=30_000,
     ),
-
     # https://huggingface.co/datasets/HumanoidTeam/AfterEightDeea23041956
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_deea_250",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,  # Rainbow has 16 action dimensions
-        action_horizon=50,
-        max_token_len=250,  # Single-arm robot, so 180 should be sufficient
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/AfterEightDeea23041956",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,  # Use task field from dataset for prompts
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_aftereight_deea_250",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=50,
+            max_token_len=250,  # Single-arm robot, so 180 should be sufficient
         ),
-        default_prompt="Pick up the box.",
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/AfterEightDeea23041956",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the box.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=120_000,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=120_000,
-),
     # https://huggingface.co/datasets/HumanoidTeam/CrumpetsDeea24041939
-TrainConfig(
-    name="pi0_fast_rainbow_poc_crumpets_deea",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,  # Rainbow has 16 action dimensions
-        action_horizon=10,
-        max_token_len=180,  # Single-arm robot, so 180 should be sufficient
-    ),
-    data=LeRobotRainbowDataConfig(
-        repo_id="HumanoidTeam/CrumpetsDeea24041939",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=False,  # Use task field from dataset for prompts
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_crumpets_deea",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,  # Rainbow has 16 action dimensions
+            action_horizon=10,
+            max_token_len=180,  # Single-arm robot, so 180 should be sufficient
         ),
-        default_prompt="Pick up the bag of chips.",
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/CrumpetsDeea24041939",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=False,  # Use task field from dataset for prompts
+            ),
+            default_prompt="Pick up the bag of chips.",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        num_train_steps=60_000,
     ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=60_000,
-),
-
     # https://huggingface.co/datasets/HumanoidTeam/QuaversDeea23041003
     TrainConfig(
         name="pi0_fast_rainbow_poc_quavers",
@@ -1280,10 +1300,11 @@ TrainConfig(
             ),
             default_prompt="Pick up the bag of chips.",
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
     ),
-
     # HumanoidTeam/CrumpetsKeti16041932
     TrainConfig(
         name="pi0_fast_rainbow_poc_crumpets",
@@ -1300,10 +1321,11 @@ TrainConfig(
             ),
             default_prompt="Pick up the crumpets.",
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
     ),
-
     # HumanoidTeam/POCPickCrispsFromShelfDiogo
     TrainConfig(
         name="pi0_fast_rainbow_poc",
@@ -1320,7 +1342,9 @@ TrainConfig(
             ),
             default_prompt="Pick up the bag of chips.",
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
         num_train_steps=30_000,
     ),
     # HumanoidTeam/cans_pick_one_amazon
@@ -1353,7 +1377,9 @@ TrainConfig(
                 local_files_only=False,  # Set to True for local-only datasets.
             ),
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
     # This config is used to demonstrate how to train on a simple simulated environment.
@@ -1365,7 +1391,9 @@ TrainConfig(
             default_prompt="Transfer cube",
             use_delta_joint_actions=False,
         ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=20_000,
     ),
     #
