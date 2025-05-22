@@ -102,6 +102,20 @@ def init_train_state(
         # Convert frozen params to bfloat16.
         params = nnx_utils.state_map(params, config.freeze_filter, lambda p: p.replace(p.value.astype(jnp.bfloat16)))
 
+        # Print all trainable parameters
+        trainable_params = params.filter(config.trainable_filter)
+        logging.info("Trainable parameters:")
+        flat_params = traverse_util.flatten_dict(trainable_params.to_pure_dict())
+        total_params = 0
+        for path, param in flat_params.items():
+            param_path = "/".join(str(p) for p in path)
+            if hasattr(param, 'shape'):  # Check if it's an array
+                shape_str = str(param.shape)
+                size = param.size
+                total_params += size
+                logging.info(f"  {param_path}: {shape_str}")
+        logging.info(f"Total trainable parameters: {total_params}")
+
         return training_utils.TrainState(
             step=0,
             params=params,

@@ -53,7 +53,7 @@ def main(config_name: str, max_frames: int | None = None):
     # print("Number of workers:", num_workers) 
     data_loader = _data_loader.TorchDataLoader(
         dataset,
-        local_batch_size=1,
+        local_batch_size=8,
         num_workers=8,
         shuffle=shuffle,
         num_batches=num_frames,
@@ -67,8 +67,9 @@ def main(config_name: str, max_frames: int | None = None):
 
     for batch in tqdm.tqdm(data_loader, total=num_frames, desc="Computing stats"):
         for key in keys:
-            values = np.asarray(batch[key][0])
-            stats[key].update(values.reshape(-1, values.shape[-1]))
+            for i in range(len(batch[key])):
+                values = np.asarray(batch[key][i])
+                stats[key].update(values.reshape(-1, values.shape[-1]))
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 

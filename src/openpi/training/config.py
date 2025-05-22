@@ -336,7 +336,7 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)],
+            inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim, model_type=model_config.model_type)],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
       
@@ -357,7 +357,7 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim)],
+            inputs=[RainbowInputsWithRotation(action_dim=model_config.action_dim, model_type=model_config.model_type)],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
         
@@ -475,6 +475,151 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 _CONFIGS = [
+    TrainConfig(
+        name="denis_pi0_r2quavers_32bs",
+        exp_name="denis_pi0_r2quavers_32bs",
+        model=pi0.Pi0Config(
+            action_horizon=30,
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=32,
+        num_train_steps=120_000,
+        num_workers=2,
+    ),
+    TrainConfig(
+        name="denis_pi0_fast_r2quavers_32bs",
+        exp_name="denis_pi0_fast_r2quavers_32bs",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=30,
+            max_token_len=200,
+            # No paligemma_variant = LoRA disabled
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        # lr_schedule=_optimizer.CosineDecaySchedule(
+        #     warmup_steps=500,
+        #     peak_lr=5e-5,
+        #     decay_steps=30000,
+        #     decay_lr=5e-6,
+        # ),
+        batch_size=32,
+        num_train_steps=120_000,
+        num_workers=2,
+    ),
+    TrainConfig(
+        name="debug_gpu_util",
+        exp_name="debug_gpu_util",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=30,
+            max_token_len=200,
+            # No paligemma_variant = LoRA disabled
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=0.99,
+        batch_size=256,
+        num_train_steps=120_000,
+        num_workers=32,
+    ),
+    TrainConfig(
+        name="test_denis",
+        exp_name="test_denis",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=30,
+            max_token_len=200,
+            # No paligemma_variant = LoRA disabled
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=32,
+        num_train_steps=60_000,
+        num_workers=8,
+    ),
+    TrainConfig(
+        name="test_denis_lora",
+        exp_name="test_denis_lora",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=16,
+        num_train_steps=120_000,
+        num_workers=8,
+    ),
+
+
     # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
 TrainConfig(
     name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
