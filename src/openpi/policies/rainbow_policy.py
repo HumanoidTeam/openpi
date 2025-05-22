@@ -80,10 +80,10 @@ class RainbowInputs(transforms.DataTransformFn):
         wrist_image = _parse_image(data["observation.image.wrist_right"])
 
         # Verify image dimensions
-        if base_image.shape != (480, 640, 3) or wrist_image.shape != (480, 640, 3):
-            raise ValueError(
-                f"Expected image shapes (480, 640, 3), got {base_image.shape} and {wrist_image.shape}"
-            )
+        # if base_image.shape != (480, 640, 3) or wrist_image.shape != (480, 640, 3):
+        #     raise ValueError(
+        #         f"Expected image shapes (480, 640, 3), got {base_image.shape} and {wrist_image.shape}"
+        #     )
 
         inputs = {
             "state": state,
@@ -124,6 +124,8 @@ class RainbowInputs(transforms.DataTransformFn):
     @staticmethod
     def _get_state_short(joint_states: torch.Tensor) -> torch.Tensor:
         """Extracts the first 7 elements of the action array - for the right wrist, and one gripper states"""
+        if isinstance(joint_states, np.ndarray):
+            joint_states = torch.from_numpy(joint_states)
         ret_value = torch.cat([joint_states[:7], joint_states[-2:-1]], dim=0)
         assert len(ret_value) == 8, f"Expected 8 elements, got {len(ret_value)}"
         return ret_value
@@ -131,6 +133,8 @@ class RainbowInputs(transforms.DataTransformFn):
     @staticmethod
     def _get_actions_short(actions_chunk: torch.Tensor) -> torch.Tensor:
         # actions_chunk expected to be of shape (action_horizon, action_dim)
+        if isinstance(actions_chunk, np.ndarray):
+            actions_chunk = torch.from_numpy(actions_chunk)
         ret_value = torch.cat([actions_chunk[:, :7], actions_chunk[:, -2:-1]], dim=1)
         assert ret_value.shape[1] == 8, f"Expected 8 elements, got {ret_value.shape[1]}"
         return ret_value

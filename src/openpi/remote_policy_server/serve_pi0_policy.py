@@ -75,8 +75,8 @@ class PolicyServer:
 
                     # Convert the received data into numpy arrays
                     state = np.array(data["observation/state"], dtype=np.float32)
-                    head_image = np.array(data["observation/image"], dtype=np.uint8)
-                    wrist_image = np.array(data["observation/wrist_image"], dtype=np.uint8)
+                    head_image = np.array(data["observation/image"], dtype=np.float32)
+                    wrist_image = np.array(data["observation/wrist_image"], dtype=np.float32)
                     process_time = time.time() - start_process
 
                     logger.info(
@@ -108,7 +108,37 @@ class PolicyServer:
                     try:
                         start_inference = time.time()
                         result = self.policy.infer(observation)
-                        action_sequence = result["actions"][:, :16]  # Shape: (10, 16)
+
+                        filler_state = state.squeeze().copy() # Shape: (16,)
+                        print(f'result shape: {result["actions"].shape}')
+                        actions_to_send = np.zeros(self.config.action_shape, dtype=np.float32)
+                        actions_to_send[:, :7] = result["actions"][:, :7]
+                        actions_to_send[:, -2:-1] = result["actions"][:, 7:]
+                        # fill the same values for the left arm
+                        actions_to_send[:, 7:14] = filler_state[7:14]
+                        actions_to_send[:, -1:] = filler_state[-1]
+                        
+                        # action_sequence = result["actions"][:, :16]  # Shape: (10, 16)
+                        action_sequence = actions_to_send  # Shape: (10, 16)
+                        print(f'action_sequence shape: {action_sequence.shape}')
+                        
+                        log_data = {
+                            "observation": {
+                                "observation.state": observation["observation.state"].tolist(),
+                                "observation.image.head": observation["observation.image.head"].tolist(),
+                                "observation.image.wrist_right": observation["observation.image.wrist_right"].tolist(),
+                                "prompt": observation["prompt"],
+                            },
+                            "result": {
+                                "actions": action_sequence.tolist()
+                            }
+                        }
+                        timestamp_str = time.strftime("%Y%m%d-%H%M%S")
+                        filename = f"dump_logs/inference_{timestamp_str}.json"
+                        with open(filename, "w") as f:
+                            json.dump(log_data, f)
+                        
+                        
                         inference_time = time.time() - start_inference
                         logger.info(f"Inference successful, action shape: {action_sequence.shape}")
 
@@ -177,10 +207,10 @@ class PolicyServer:
                     continue
 
             except Exception as websocket_error:
-                logger.error(f"WebSocket error with client {client_id}: {websocket_error!s}")
-                logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
+                # logger.error(f"WebSocket error with client {client_id}: {websocket_error!s}")
+                # logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
                 if "disconnect" in str(websocket_error).lower() or "closed" in str(websocket_error).lower():
-                    logger.info(f"Client {client_id} disconnected")
+                    # logger.info(f"Client {client_id} disconnected")
                     break
                 continue
 
@@ -203,7 +233,9 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     args = parser.parse_args()
 
-    config = ModelConfig(state_shape=(1, 16), image_shape=(480, 640, 3), action_shape=(10, 16))
+    # config = ModelConfig(state_shape=(1, 16), image_shape=(480, 640, 3), action_shape=(10, 16))
+    # config = ModelConfig(state_shape=(1, 16), image_shape=(480, 640, 3))
+    config = ModelConfig(state_shape=(1, 16), image_shape=(224, 224, 3))
 
     if args.model_name:
         config.model_name = args.model_name

@@ -1465,6 +1465,32 @@ _CONFIGS = [
         batch_size=256,  # Keep the same batch size
         num_workers=8,  # Keep the same number of workers
     ),
+    TrainConfig(
+        name="pi0_fast_cut_states_v2_full_run",
+        exp_name="exp_pi0_fast_cut_states_v2_full_run",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=8, action_horizon=30, max_token_len=150,
+        ),
+        data=LeRobotRainbowDataConfigRotated(
+            repo_id="HumanoidTeam/R2ReasoningTestDatasetV1MergedForVLAResized",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=100_000,
+        wandb_enabled=True,
+        batch_size=32,
+        save_interval=5_000,
+        keep_period=10_000,
+        num_workers=8,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            decay_steps=89_000,
+        ),
+        fsdp_devices=1,
+    ),
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
