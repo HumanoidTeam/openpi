@@ -1,0 +1,55 @@
+# Use an official Python runtime as a parent image
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS base
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies, including Git, curl, and build tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    openssh-client \
+    ca-certificates \
+    build-essential \
+    gcc \
+    python3-dev \
+    nvidia-cuda-toolkit \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set CUDA environment variables
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# Install uv using the official installer script and add to PATH
+ENV PATH="/root/.local/bin:${PATH}"
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh && \
+    uv --version
+
+# Enable BuildKit SSH forwarding for host SSH keys and configure git
+RUN mkdir -p -m 0700 ~/.ssh && \
+    ssh-keyscan github.com >> ~/.ssh/known_hosts && \
+    git config --global url."git@github.com:".insteadOf "https://github.com/" && \
+    git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
+# Clone OpenPI in a separate step
+RUN --mount=type=ssh git clone --recurse-submodules -b openpi-server git@github.com:HumanoidTeam/openpi.git
+
+# Install dependencies in a separate step for better caching
+WORKDIR /app/openpi
+RUN --mount=type=ssh GIT_LFS_SKIP_SMUDGE=1 uv sync
+RUN --mount=type=ssh GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
+
+# Final stage using runtime image to reduce size
+FROM base AS policyserver
+
+WORKDIR /app/openpi/src/openpi/remote_policy_server
+
+# Copy and set up the entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Set the entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

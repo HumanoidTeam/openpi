@@ -1,0 +1,42 @@
+x-policy-server-image-build: &policy_server
+  build:
+    context: .
+    ssh:
+      default:
+    dockerfile: Dockerfile.policyserver
+
+
+x-deploy: &gpu_deploy
+  runtime: nvidia
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+
+networks:
+  policy-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+services:
+  policy-server:
+    volumes:
+      - ~/.cache/openpi:/root/.cache/openpi
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_NAME=${MODEL_NAME:-pi0_fast_rainbow_poc}
+      - CHECKPOINT_PATH=${CHECKPOINT_PATH:-s3://hm-vla/checkpoints/pi0_fast_rainbow_poc/pi0_rainbow_poc_chips/20000}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    runtime: nvidia
+
+    networks:
+      - policy-net
+    <<: [ *policy_server, *gpu_deploy ]
