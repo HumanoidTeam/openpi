@@ -190,6 +190,54 @@ def train_step(
     return new_state, info
 
 
+@at.typecheck
+def val_step(
+    config: _config.TrainConfig,
+    rng: at.KeyArrayLike,
+    state: training_utils.TrainState,
+    batch: tuple[_model.Observation, _model.Actions],
+) -> dict[str, at.Array]:
+    model = nnx.merge(state.model_def, state.params)
+    model.eval()
+
+    @at.typecheck
+    def loss_fn(
+        model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions
+    ):
+        chunked_loss = model.compute_loss(rng, observation, actions, train=False)
+        return jnp.mean(chunked_loss)
+
+    val_rng = jax.random.fold_in(rng, state.step)
+    observation, actions = batch
+    loss = loss_fn(model, val_rng, observation, actions)
+    info = {"val_loss": loss}
+    return info
+
+def compute_val_losses(val_data_loader, mesh, pval_step, train_rng, train_state, reduced_info):
+    val_losses = []
+    try:
+        current_val_iter = iter(val_data_loader)
+        while True: # iter through val dataset
+            try:
+                val_batch = next(current_val_iter)
+
+                with sharding.set_mesh(mesh):
+                    val_batch_info = pval_step(train_rng, train_state, val_batch) 
+                    val_losses.append(val_batch_info["val_loss"])
+            except StopIteration:
+                break
+
+    except Exception as e:
+        logging.error(f"Error during validation: {e}")
+
+    if val_losses:
+        mean_val_loss = jnp.mean(jnp.array(val_losses))
+        reduced_val_info = {"val_loss": mean_val_loss} 
+        log_info = {**reduced_info, **reduced_val_info}
+
+    return log_info
+
+
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
@@ -216,14 +264,16 @@ def main(config: _config.TrainConfig):
     )
     init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)
 
-    data_loader = _data_loader.create_data_loader(
+    train_data_loader, val_data_loader = _data_loader.create_data_loader(
         config,
         sharding=data_sharding,
         num_workers=config.num_workers,
         shuffle=True,
+        train_split=config.train_split
     )
-    data_iter = iter(data_loader)
-    batch = next(data_iter)
+
+    train_data_iter = iter(train_data_loader)
+    batch = next(train_data_iter)
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
@@ -231,13 +281,20 @@ def main(config: _config.TrainConfig):
     logging.info(f"Initialized train state:\n{training_utils.array_tree_to_info(train_state.params)}")
 
     if resuming:
-        train_state = _checkpoints.restore_state(checkpoint_manager, train_state, data_loader)
+        train_state = _checkpoints.restore_state(checkpoint_manager, train_state, train_data_loader)
 
     ptrain_step = jax.jit(
         functools.partial(train_step, config),
         in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
         out_shardings=(train_state_sharding, replicated_sharding),
         donate_argnums=(1,),
+    )
+
+    pval_step = jax.jit(
+        functools.partial(val_step, config),
+        in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
+        out_shardings=replicated_sharding,
+        # donate_argnums=(1,),
     )
 
     start_step = int(train_state.step)
@@ -256,14 +313,15 @@ def main(config: _config.TrainConfig):
         if step % config.log_interval == 0:
             stacked_infos = common_utils.stack_forest(infos)
             reduced_info = jax.device_get(jax.tree.map(jnp.mean, stacked_infos))
-            info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
+            log_info = compute_val_losses(val_data_loader, mesh, pval_step, train_rng, train_state, reduced_info) if config.train_split != 1.0 else reduced_info
+            info_str = ", ".join(f"{k}={v:.4f}" for k, v in log_info.items())
             pbar.write(f"Step {step}: {info_str}")
-            wandb.log(reduced_info, step=step)
+            wandb.log(log_info, step=step)
             infos = []
-        batch = next(data_iter)
+        batch = next(train_data_iter)
 
         if (step % config.save_interval == 0 and step > start_step) or step == config.num_train_steps - 1:
-            _checkpoints.save_state(checkpoint_manager, train_state, data_loader, step)
+            _checkpoints.save_state(checkpoint_manager, train_state, train_data_loader, step)
 
     logging.info("Waiting for checkpoint manager to finish")
     checkpoint_manager.wait_until_finished()

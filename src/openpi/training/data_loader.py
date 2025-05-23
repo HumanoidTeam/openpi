@@ -13,6 +13,7 @@ import torch
 import openpi.models.model as _model
 import openpi.training.config as _config
 import openpi.transforms as _transforms
+from torch.utils.data import random_split
 
 T_co = TypeVar("T_co", covariant=True)
 
@@ -135,6 +136,7 @@ def create_data_loader(
     shuffle: bool = False,
     num_batches: int | None = None,
     num_workers: int = 0,
+    train_split: float = 1.0,
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -152,19 +154,34 @@ def create_data_loader(
     """
     data_config = config.data.create(config.assets_dirs, config.model)
 
-    dataset = create_dataset(data_config, config.model)
-    dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
+    _dataset = create_dataset(data_config, config.model)
+    _dataset = transform_dataset(_dataset, data_config, skip_norm_stats=skip_norm_stats)
 
-    data_loader = TorchDataLoader(
-        dataset,
-        local_batch_size=config.batch_size // jax.process_count(),
-        sharding=sharding,
-        shuffle=shuffle,
-        num_batches=num_batches,
-        num_workers=num_workers,
-        seed=config.seed,
-#        **dataloader_kwargs, 
+    train_dataset, val_dataset = _split_dataset(_dataset, train_split)
+
+    local_batch_size = config.batch_size // jax.process_count()
+
+    dataset_size = len(_dataset)
+    train_size = int(dataset_size * train_split)
+
+    if train_split != 1:
+        val_size = dataset_size - train_size
+        train_dataset, val_dataset = random_split(_dataset, [train_size, val_size])
+    else:
+        train_dataset = _dataset
+    
+    train_loader = _create_torch_data_loader(
+        train_dataset, local_batch_size, sharding, shuffle, 
+        num_batches, num_workers, config.seed
     )
+    
+    val_loader = None
+    if val_dataset is not None:
+        val_num_batches = _calculate_val_batches(val_dataset, local_batch_size)
+        val_loader = _create_torch_data_loader(
+            val_dataset, local_batch_size, sharding, False,  # Don't shuffle validation
+            val_num_batches, num_workers, config.seed
+        )
 
     class DataLoaderImpl(DataLoader):
         def __init__(self, data_config: _config.DataConfig, data_loader: TorchDataLoader):
@@ -175,10 +192,32 @@ def create_data_loader(
             return self._data_config
 
         def __iter__(self):
+            if self._data_loader is None:
+                return iter([])
+        
             for batch in self._data_loader:
                 yield _model.Observation.from_dict(batch), batch["actions"]
 
-    return DataLoaderImpl(data_config, data_loader)
+    # Wrap in DataLoaderImpl
+    train_data_loader = DataLoaderImpl(data_config, train_loader)
+    val_data_loader = DataLoaderImpl(data_config, val_loader) if val_loader else None
+    return train_data_loader, val_data_loader
+
+
+def _split_dataset(dataset: Dataset, train_split: float) -> tuple[Dataset, Dataset | None]:
+    """Split dataset into train and validation sets."""
+    if train_split == 1.0:
+        return dataset, None
+    
+    dataset_size = len(dataset)
+    train_size = int(dataset_size * train_split)
+    val_size = dataset_size - train_size
+    
+    if val_size == 0:
+        return dataset, None
+    
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+    return train_dataset, val_dataset
 
 
 class TorchDataLoader:
@@ -213,7 +252,9 @@ class TorchDataLoader:
             raise NotImplementedError("Data loading with multiple processes is not supported.")
 
         if len(dataset) < local_batch_size:
-            raise ValueError(f"Local batch size ({local_batch_size}) is larger than the dataset size ({len(dataset)}).")
+            raise ValueError(
+                f"Local batch size ({local_batch_size}) is larger than the dataset size ({len(dataset)})."
+            )
 
         if sharding is None:
             # Use data parallel sharding by default.
@@ -277,3 +318,29 @@ def _worker_init_fn(worker_id: int) -> None:
     # means that this approach will not work for selecting the backend.
     os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
     os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
+
+
+def _calculate_val_batches(val_dataset: Dataset, local_batch_size: int) -> int:
+    """Calculate the number of validation batches."""
+    return len(val_dataset) // local_batch_size if len(val_dataset) > 0 else 0
+
+
+def _create_torch_data_loader(
+    dataset: Dataset,
+    local_batch_size: int,
+    sharding: jax.sharding.Sharding | None,
+    shuffle: bool,
+    num_batches: int | None,
+    num_workers: int,
+    seed: int
+) -> TorchDataLoader:
+    """Create a TorchDataLoader with the given parameters."""
+    return TorchDataLoader(
+        dataset,
+        local_batch_size=local_batch_size,
+        sharding=sharding,
+        shuffle=shuffle,
+        num_batches=num_batches,
+        num_workers=num_workers,
+        seed=seed,
+    )

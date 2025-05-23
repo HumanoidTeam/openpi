@@ -429,6 +429,9 @@ class TrainConfig:
     # Number of train steps (batches) to run.
     num_train_steps: int = 30_000
 
+    # The train-val split threshold. Should be between [0,1]. 0.99 = 99% training vs 1% validation
+    train_split: float = 1.0
+
     # How often (in steps) to log training metrics.
     log_interval: int = 100
     # How often (in steps) to save checkpoints.
@@ -1333,6 +1336,85 @@ TrainConfig(
         exp_name="debug",
         num_train_steps=10,
         wandb_enabled=False,
+    ),
+
+    ### ----- Examples of using the validation split in training
+    TrainConfig(
+        name="with_validation",
+        exp_name="with_validation",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=2,
+        num_train_steps=1_000,
+        num_workers=8,
+        log_interval=25,
+        save_interval=50,
+        train_split=0.99,
+    ),
+    TrainConfig(
+        name="claudiu_zero_validation",
+        exp_name="claudiu_zero_validation",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+        ),
+        freeze_filter=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+            paligemma_variant="gemma_2b_lora",
+        ).get_freeze_filter(),
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=500,
+            peak_lr=5e-5,
+            decay_steps=30000,
+            decay_lr=5e-6,
+        ),
+        ema_decay=None,
+        batch_size=2,
+        num_train_steps=1_000,
+        num_workers=8,
+        log_interval=25,
+        save_interval=50,
     ),
 ]
 

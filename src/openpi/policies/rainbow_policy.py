@@ -27,8 +27,8 @@ def make_rainbow_example() -> dict:
     """Creates a random input example for the Rainbow policy."""
     return {
         "observation.state": np.random.rand(16),
-        "observation.image.head": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
-        "observation.image.wrist_right": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
+        "observation.image.head": np.random.randint(256, size=(224, 224, 3), dtype=np.uint8),
+        "observation.image.wrist_right": np.random.randint(256, size=(224, 224, 3), dtype=np.uint8),
         "prompt": "do something",
  
     }
@@ -53,8 +53,8 @@ class RainbowInputs(transforms.DataTransformFn):
     
     Expected keys in the input dictionary:
       - "observation.state": a 16-dimensional array (float64).
-      - "observation.image.head": an image array (480x640x3).
-      - "observation.image.wrist_right": an image array (480x640x3).
+      - "observation.image.head": an image array (224x224x3).
+      - "observation.image.wrist_right": an image array (224x224x3).
       - "prompt": a string instruction.
       - "action": a 16-dimensional array (float64).
     """
@@ -75,9 +75,9 @@ class RainbowInputs(transforms.DataTransformFn):
 
 
         # Verify image dimensions
-        if base_image.shape != (480, 640, 3) or wrist_image.shape != (480, 640, 3):
+        if base_image.shape != (224, 224, 3) or wrist_image.shape != (224, 224, 3):
             raise ValueError(
-                f"Expected image shapes (480, 640, 3), got {base_image.shape} and {wrist_image.shape}"
+                f"Expected image shapes (224, 224, 3), got {base_image.shape} and {wrist_image.shape}"
             )
         
         inputs = {
