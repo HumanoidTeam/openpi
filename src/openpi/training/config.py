@@ -327,6 +327,7 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfig(DataConfigFactory):
     """Data config for the Rainbow robot."""
+
     """ Assumes no Pi adaptation and no delta modelization of actions"""
 
     # If provided, will be injected into the input data if the "prompt" key is not present.
@@ -339,7 +340,7 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
             inputs=[rainbow_policy.RainbowInputs(action_dim=model_config.action_dim)],
             outputs=[rainbow_policy.RainbowOutputs()],
         )
-      
+
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
 
         return dataclasses.replace(
@@ -677,7 +678,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
     ),
-
     # HumanoidTeam/cans_pick_one_amazon
     TrainConfig(
         name="pi0_toilet_pp",
@@ -711,7 +711,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
     ),
-
     # HumanoidTeam/stack
     TrainConfig(
         name="pi0_stack",
@@ -745,7 +744,6 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=40_000,
     ),
-
     # HumanoidTeam/POCPickCrispsFromShelfDiogo
     TrainConfig(
         name="pi0_fast_rainbow_poc",
@@ -797,6 +795,25 @@ _CONFIGS = [
         ),
         weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
         num_train_steps=20_000,
+    ),
+    # After Eight + Quality Street (128 batch, H200)
+    TrainConfig(
+        name="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
+        model=pi0_fast.Pi0FASTConfig(
+            action_dim=16,
+            action_horizon=50,
+            max_token_len=250,
+        ),
+        data=LeRobotRainbowDataConfig(
+            repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_fast_base/params"),
+        num_train_steps=120_000,
+        batch_size=384,
     ),
     # This config is used to demonstrate how to train on a simple simulated environment.
     TrainConfig(
