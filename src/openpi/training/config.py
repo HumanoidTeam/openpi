@@ -497,6 +497,32 @@ class TrainConfig:
             raise ValueError("Cannot resume and overwrite at the same time.")
 
 _CONFIGS = [
+
+
+     # After Eight + Quality Street with 180-degree rotated head camera
+TrainConfig(
+    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
+    exp_name="exp_rotated_head_fix_32bz",  # Add an experiment name
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfigRotated(  # Using the new rotated config
+        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    num_train_steps=120_000,
+    batch_size=32,  # Using your tested batch size for H100
+    num_workers=8,  # Increased for faster data loading
+),
+
     # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
 TrainConfig(
     name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
@@ -569,29 +595,6 @@ TrainConfig(
     batch_size=256,
     num_train_steps=100_000,
     num_workers=8,
-),
-    # After Eight + Quality Street with 180-degree rotated head camera
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
-    exp_name="exp_rotated_head_fix",  # Add an experiment name
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfigRotated(  # Using the new rotated config
-        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
-        ),
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-    num_train_steps=120_000,
-    batch_size=256,  # Using your tested batch size for H100
-    num_workers=8,  # Increased for faster data loading
 ),
 
 # https://huggingface.co/datasets/HumanoidTeam/five_tasks_08_05_25
