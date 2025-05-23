@@ -591,7 +591,7 @@ TrainConfig(
     ),
     ema_decay=None,           # keep EMA off for LoRA
     batch_size=512,
-    num_train_steps=120_000,
+    num_train_steps=240_000,
     num_workers=8,
 ),
 
