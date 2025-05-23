@@ -498,7 +498,37 @@ class TrainConfig:
 
 _CONFIGS = [
 
-
+# https://huggingface.co/datasets/HumanoidTeam/R2_VLA_merged_6tasks_100_episodes_v1_2025_05_22
+TrainConfig(
+    name="pi0_fast_finetune_r2_6skills_250t_32bz",
+    exp_name="exp_r2_6skills_32bz",          # required for checkpoints / W&B
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,        # Rainbow arm = 16-D (7 × 2 + 2 grippers)
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfig(
+        repo_id="HumanoidTeam/R2_VLA_merged_6tasks_100_episodes_v1_2025_05_22",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,           # read the instruction from each example
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+    lr_schedule=_optimizer.CosineDecaySchedule(
+        warmup_steps=500,
+        peak_lr=5e-5,
+        decay_steps=30000,
+        decay_lr=5e-6,
+    ),
+    ema_decay=None,
+    batch_size=32,           # ← requested
+    num_train_steps=120_000, # ← requested
+    num_workers=8,
+)
+,
      # After Eight + Quality Street with 180-degree rotated head camera
 TrainConfig(
     name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz",
