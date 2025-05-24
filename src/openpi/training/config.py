@@ -606,7 +606,7 @@ TrainConfig(
     batch_size=384,
     num_train_steps=40_000,
     num_workers=8,
-)
+),
 
     # https://huggingface.co/datasets/HumanoidTeam/VLA_merged_7tasks_100_episodes_v1_13052025
 TrainConfig(
