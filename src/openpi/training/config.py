@@ -573,8 +573,7 @@ TrainConfig(
     num_workers=8,  # Increased for faster data loading
 ),
 
-    # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
-TrainConfig(
+
     # After Eight + Quality Street (rotated head-cam, original image size)
 TrainConfig(
     name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_512bz_40k",
