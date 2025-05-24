@@ -606,8 +606,9 @@ TrainConfig(
     batch_size=512,
     num_train_steps=40_000,
     num_workers=8,
-)
-
+),
+    # https://huggingface.co/datasets/HumanoidTeam/VLA_merged_7tasks_100_episodes_v1_13052025
+TrainConfig(
     name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
     exp_name="exp_rotated_head_lora",          # new experiment name
     model=pi0_fast.Pi0FASTConfig(
