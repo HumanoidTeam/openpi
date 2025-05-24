@@ -575,6 +575,40 @@ TrainConfig(
 
     # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
 TrainConfig(
+    # After Eight + Quality Street (rotated head-cam, original image size)
+TrainConfig(
+    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_512bz_40k",
+    exp_name="exp_rotated_head_512bz_40k",
+    model=pi0_fast.Pi0FASTConfig(
+        action_dim=16,
+        action_horizon=50,
+        max_token_len=250,
+    ),
+    data=LeRobotRainbowDataConfigRotated(
+        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
+        base_config=DataConfig(
+            local_files_only=False,
+            prompt_from_task=True,
+        ),
+    ),
+    weight_loader=weight_loaders.CheckpointWeightLoader(
+        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
+    ),
+
+    # LR schedule scaled for 512-batch and 40 k steps
+    lr_schedule=_optimizer.CosineDecaySchedule(
+        warmup_steps=2_000,      # ~8k images of warm-up
+        peak_lr=6e-4,            # 2× higher than 256 BZ config
+        decay_steps=30_000,      # cosine tail completes well before 40 k
+        decay_lr=5e-5,           # slightly higher tail LR for stability
+    ),
+    ema_decay=None,
+
+    batch_size=512,
+    num_train_steps=40_000,
+    num_workers=8,
+)
+
     name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
     exp_name="exp_rotated_head_lora",          # new experiment name
     model=pi0_fast.Pi0FASTConfig(
