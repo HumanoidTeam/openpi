@@ -1,22 +1,25 @@
 """Remote policy server for π₀ model inference with fast image processing."""
 
+import argparse
+import base64
+from io import BytesIO
 import json
 import logging
 import time
 import traceback
-import base64
-import numpy as np
-from io import BytesIO
-from PIL import Image
-from fastapi import FastAPI, WebSocket
+
+from fastapi import FastAPI
+from fastapi import WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+import jax
+import numpy as np
+from PIL import Image
 from starlette.websockets import WebSocketDisconnect
 import uvicorn
-import argparse
 
-from openpi.training import config
 from openpi.policies import policy_config
 from openpi.shared import download
+from openpi.training import config
 
 
 def numpy_hook(dct):
@@ -43,13 +46,35 @@ def decode_compressed_image(encoded_str):
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("[Pi0-Server]")
+
+# Log JAX device information
+logger.info("=" * 60)
+logger.info("JAX CONFIGURATION")
+logger.info("=" * 60)
+logger.getChild("JAX").info("JAX devices: %s", jax.devices())
+logger.getChild("JAX").info("JAX default device: %s", jax.default_backend())
+logger.getChild("JAX").info("JAX platform: %s", jax.default_backend())
+logger.info("=" * 60)
 
 
 class FastPolicyServer:
-    def __init__(self, model_path: str = "s3://hm-vla/checkpoints/44000/"):
+    """FastAPI server for serving π₀ policy model with WebSocket support for real-time inference."""
+
+    def __init__(
+        self,
+        model_path: str = "s3://hm-vla/checkpoints/44000/",
+        config_name: str = "pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
+    ):
         self.app = FastAPI()
         self.model_path = model_path
+        self.config_name = config_name
+        logger.info("=" * 60)
+        logger.info("MODEL INITIALIZATION")
+        logger.info("=" * 60)
+        logger.info("Model path: %s", model_path)
+        logger.info("Config name: %s", config_name)
+        logger.info("=" * 60)
         self.policy = None
         self.load_model()
 
@@ -68,12 +93,13 @@ class FastPolicyServer:
     def load_model(self):
         """Load the π₀ model."""
         logger.info("Loading π₀ model...")
-        config_obj = config.get_config("pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200")
+        config_obj = config.get_config(self.config_name)
         checkpoint_dir = download.maybe_download(self.model_path)
         self.policy = policy_config.create_trained_policy(config_obj, checkpoint_dir)
         logger.info("Model loaded successfully!")
 
     async def websocket_endpoint(self, websocket: WebSocket):
+        """Handle WebSocket connections for real-time policy inference requests."""
         client_id = id(websocket)
         logger.info("New WebSocket connection request from client %s", client_id)
         await websocket.accept()
@@ -82,10 +108,10 @@ class FastPolicyServer:
         while True:
             try:
                 start_receive = time.time()
-                logger.info(f"Waiting for data from client {client_id}...")
+                logger.info("Waiting for data from client %s...", client_id)
                 data = await websocket.receive_json()
                 receive_time = time.time() - start_receive
-                logger.info(f"Received data from client {client_id} in {receive_time:.3f}s")
+                logger.info("Received data from client %s in %.3fs", client_id, receive_time)
 
                 try:
                     start_process = time.time()
@@ -104,7 +130,10 @@ class FastPolicyServer:
                     process_time = time.time() - start_process
 
                     logger.info(
-                        f"Data shapes - State: {state.shape}, Head Image: {head_image.shape}, Wrist Image: {wrist_image.shape}"
+                        "Data shapes - State: %s, Head Image: %s, Wrist Image: %s",
+                        state.shape,
+                        head_image.shape,
+                        wrist_image.shape,
                     )
 
                     # Validate input shapes
@@ -119,7 +148,7 @@ class FastPolicyServer:
 
                     # Prepare observation
                     prompt = data.get("prompt", "Stop.")
-                    logger.info(f'Using prompt: "{prompt}"')
+                    logger.info('Using prompt: "%s"', prompt)
                     observation = {
                         "observation.state": state.squeeze(),  # Convert (1, 16) to (16,)
                         "observation.image.head": head_image,
@@ -133,7 +162,7 @@ class FastPolicyServer:
                         result = self.policy.infer(observation)
                         action_sequence = result["actions"][:, :16]  # Shape: (10, 16)
                         inference_time = time.time() - start_inference
-                        logger.info(f"Inference successful, action shape: {action_sequence.shape}")
+                        logger.info("Inference successful, action shape: %s", action_sequence.shape)
 
                         # Print the generated actions
                         logger.info("\nGenerated actions from π₀ policy:")
@@ -141,18 +170,21 @@ class FastPolicyServer:
 
                         logger.info("Right Arm Actions (7 joints):")
                         for i in range(7):
-                            logger.info(f"  right_arm_{i}: {first_action[i]:.4f}")
+                            logger.info("  right_arm_%d: %.4f", i, first_action[i])
 
                         logger.info("\nLeft Arm Actions (7 joints):")
                         for i in range(7):
-                            logger.info(f"  left_arm_{i}: {first_action[i + 7]:.4f}")
+                            logger.info("  left_arm_%d: %.4f", i, first_action[i + 7])
 
                         logger.info("\nGripper Actions (2 joints):")
-                        logger.info(f"  right_robotiq_85_left_knuckle_joint: {first_action[14]:.4f}")
-                        logger.info(f"  left_robotiq_85_left_knuckle_joint: {first_action[15]:.4f}")
+                        logger.info("  right_robotiq_85_left_knuckle_joint: %.4f", first_action[14])
+                        logger.info("  left_robotiq_85_left_knuckle_joint: %.4f", first_action[15])
 
                         logger.critical(
-                            f"!!! TIMING REPORT: Inference took {inference_time:.3f}s, Processing took {process_time:.3f}s, Receive took {receive_time:.3f}s !!!"
+                            "!!! TIMING REPORT: Inference took %.3fs, Processing took %.3fs, Receive took %.3fs !!!",
+                            inference_time,
+                            process_time,
+                            receive_time,
                         )
 
                         logger.info("Sending response back to client...")
@@ -169,19 +201,18 @@ class FastPolicyServer:
                             }
                         )
                         send_time = time.time() - start_send
-                        logger.info(f"Response sent in {send_time:.3f}s")
-                        logger.info(f"Total request time: {time.time() - start_receive:.3f}s")
+                        logger.info("Response sent in %.3fs", send_time)
+                        logger.info("Total request time: %.3fs", time.time() - start_receive)
 
                     except WebSocketDisconnect:
-                        logger.info(f"Client {client_id} disconnected gracefully.")
+                        logger.info("Client %s disconnected gracefully.", client_id)
                         break
                     except Exception as inference_error:
-                        logger.error(f"Inference error: {str(inference_error)}")
-                        logger.error(f"Inference error traceback: {traceback.format_exc()}")
+                        logger.exception("Inference error: ")
                         await websocket.send_json(
                             {
                                 "status": "error",
-                                "error": f"Inference error: {str(inference_error)}",
+                                "error": f"Inference error: {inference_error!s}",
                                 "timing": {
                                     "receive": receive_time,
                                     "process": process_time,
@@ -192,29 +223,30 @@ class FastPolicyServer:
                         continue
 
                 except Exception as processing_error:
-                    logger.error(f"Data processing error: {str(processing_error)}")
-                    logger.error(f"Processing error traceback: {traceback.format_exc()}")
+                    logger.exception("Data processing error: ")
                     await websocket.send_json(
                         {
                             "status": "error",
-                            "error": f"Processing error: {str(processing_error)}",
+                            "error": f"Processing error: {processing_error!s}",
                             "timing": {"receive": receive_time, "error_time": time.time() - start_process},
                         }
                     )
                     continue
 
             except Exception as websocket_error:
-                logger.error(f"WebSocket error with client {client_id}: {str(websocket_error)}")
-                logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
+                logger.exception("WebSocket error with client %s: %s", client_id, websocket_error)
                 if "disconnect" in str(websocket_error).lower() or "closed" in str(websocket_error).lower():
-                    logger.info(f"Client {client_id} disconnected")
+                    logger.info("Client %s disconnected", client_id)
                     break
                 continue
 
 
-def create_app(model_path: str = "s3://hm-vla/checkpoints/44000/") -> FastAPI:
+def create_app(
+    model_path: str = "s3://hm-vla/checkpoints/44000/",
+    config_name: str = "pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
+) -> FastAPI:
     """Create and configure the FastAPI application."""
-    server = FastPolicyServer(model_path)
+    server = FastPolicyServer(model_path, config_name)
     return server.app
 
 
@@ -236,21 +268,35 @@ def main():
         default="s3://hm-vla/checkpoints/44000/",
         help="Path to the model checkpoint (default: s3://hm-vla/checkpoints/44000/)",
     )
+    parser.add_argument(
+        "--config-name",
+        type=str,
+        default="pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200",
+        help="Name of the model configuration to use (default: pi0_fast_rainbow_poc_aftereight_qs_deea_250t_128bz_h200)",
+    )
 
     args = parser.parse_args()
 
     # Configure logging based on arguments
     logging.basicConfig(
-        level=getattr(logging, args.log_level.upper()), format="%(asctime)s - %(levelname)s - %(message)s"
+        level=getattr(logging, args.log_level.upper()),
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
+    # Ensure the root logger is also set to the same level
+    logging.getLogger().setLevel(getattr(logging, args.log_level.upper()))
 
-    logger.info(f"Starting server on {args.host}:{args.port}...")
+    logger.info("=" * 60)
+    logger.info("SERVER CONFIGURATION")
+    logger.info("=" * 60)
+    logger.info("Starting server on %s:%s...", args.host, args.port)
     logger.info("CORS is enabled for all origins")
     logger.info("WebSocket ping interval: 5s")
     logger.info("WebSocket ping timeout: 20s")
     logger.info("Keep-alive timeout: 60s")
+    logger.info("=" * 60)
 
-    app = create_app(args.model_path)
+    app = create_app(args.model_path, args.config_name)
     uvicorn.run(
         app,
         host=args.host,
