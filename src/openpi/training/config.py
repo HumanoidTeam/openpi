@@ -522,9 +522,9 @@ _CONFIGS = [
 # https://huggingface.co/datasets/HumanoidTeam/R2_VLA_merged_6tasks_100_episodes_v1_2025_05_22
 TrainConfig(
     name="pi0_fast_finetune_r2_6skills_250t_32bz",
-    exp_name="exp_r2_6skills_32bz",          # required for checkpoints / W&B
+    exp_name="exp_r2_6skills_32bz",        
     model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,        # Rainbow arm = 16-D (7 × 2 + 2 grippers)
+        action_dim=16,       
         action_horizon=50,
         max_token_len=250,
     ),
@@ -532,7 +532,7 @@ TrainConfig(
         repo_id="HumanoidTeam/R2_VLA_merged_6tasks_100_episodes_v1_2025_05_22",
         base_config=DataConfig(
             local_files_only=False,
-            prompt_from_task=True,           # read the instruction from each example
+            prompt_from_task=True,          
         ),
     ),
     weight_loader=weight_loaders.CheckpointWeightLoader(
@@ -545,8 +545,8 @@ TrainConfig(
         decay_lr=5e-6,
     ),
     ema_decay=None,
-    batch_size=32,           # ← requested
-    num_train_steps=120_000, # ← requested
+    batch_size=32,          
+    num_train_steps=120_000, 
     num_workers=8,
 ),
      # After Eight + Quality Street with 180-degree rotated head camera
@@ -1469,16 +1469,16 @@ TrainConfig(
         batch_size=256,  # Keep the same batch size
         num_workers=8,  # Keep the same number of workers
     ),
-    # After Eight + Quality Street with 180-degree rotated head camera and 224x224 input images
+    # After Eight + Quality Street with 180-degree rotated head camera (scaled learning rate for 256 batch)
     TrainConfig(
-        name="pi0_fast_rainbow_poc_aftereight_qs_rotated_224_250t_32bz",
-        exp_name="exp_rotated_head_224_32bz",
+        name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz_scaled_lr",
+        exp_name="exp_rotated_head_scaled_lr",  # New experiment name
         model=pi0_fast.Pi0FASTConfig(
             action_dim=16,
             action_horizon=50,
             max_token_len=250,
         ),
-        data=LeRobotRainbowDataConfigRotated224(  # Using the new 224x224 rotated config
+        data=LeRobotRainbowDataConfigRotated(  # Using the rotated config
             repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
             base_config=DataConfig(
                 local_files_only=False,
@@ -1488,79 +1488,17 @@ TrainConfig(
         weight_loader=weight_loaders.CheckpointWeightLoader(
             "s3://openpi-assets/checkpoints/pi0_fast_base/params"
         ),
+        # Scaled learning rate for batch size 256 (8x increase from 32)
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1000,        # Increased warmup steps
+            peak_lr=4e-4,            # Scaled up from 5e-5 (5e-5 * 8)
+            decay_steps=30000,
+            decay_lr=4e-5,           # Scaled up from 5e-6
+        ),
         num_train_steps=120_000,
-        batch_size=32,  # Using your tested batch size for H100
-        num_workers=8,  # Increased for faster data loading
+        batch_size=256,              # Target batch size
+        num_workers=8,               # Keep same number of workers
     ),
-    # After Eight + Quality Street (rotated head-cam, original image size)
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_256bz_40k",
-    exp_name="exp_rotated_head_256bz_40k",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfigRotated(          # ← same rotated-camera loader
-        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
-        ),
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-
-    # LR schedule scaled for 256-batch and 40 k steps
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=1_000,      # ~4k images of warm-up
-        peak_lr=3e-4,            # 6× higher than 5e-5 (sub-linear)
-        decay_steps=25_000,      # cosine tail completes well before 40 k
-        decay_lr=3e-5,
-    ),
-    ema_decay=None,
-
-    batch_size=256,
-    num_train_steps=40_000,
-    num_workers=8,
-)
-,
-# After Eight + Quality Street (rotated head-cam, original image size)
-TrainConfig(
-    name="pi0_fast_rainbow_poc_aftereight_qs_rotated_250t_512bz_40k",
-    exp_name="exp_rotated_head_512bz_40k",
-    model=pi0_fast.Pi0FASTConfig(
-        action_dim=16,
-        action_horizon=50,
-        max_token_len=250,
-    ),
-    data=LeRobotRainbowDataConfigRotated(
-        repo_id="HumanoidTeam/after_eight_deea_and_quality_street_arjun",
-        base_config=DataConfig(
-            local_files_only=False,
-            prompt_from_task=True,
-        ),
-    ),
-    weight_loader=weight_loaders.CheckpointWeightLoader(
-        "s3://openpi-assets/checkpoints/pi0_fast_base/params"
-    ),
-
-    # LR schedule scaled for 512-batch and 40 k steps
-    lr_schedule=_optimizer.CosineDecaySchedule(
-        warmup_steps=2_000,      # ~8k images of warm-up
-        peak_lr=6e-4,            # 2× higher than 256 BZ config
-        decay_steps=30_000,      # cosine tail completes well before 40 k
-        decay_lr=5e-5,           # slightly higher tail LR for stability
-    ),
-    ema_decay=None,
-
-    batch_size=512,
-    num_train_steps=40_000,
-    num_workers=8,
-)
-
-
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
