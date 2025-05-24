@@ -1,5 +1,6 @@
 """Remote policy server for π₀ model inference."""
 
+import io
 import json
 import logging
 import time
@@ -11,6 +12,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import numpy as np
 from starlette.websockets import WebSocketDisconnect
 import uvicorn
+import base64
+
+from PIL import Image
+from numpy.typing import NDArray
 
 from openpi.remote_policy_server.config import ModelConfig
 from openpi.remote_policy_server.model import load_model
@@ -22,6 +27,15 @@ def numpy_hook(dct):
         if isinstance(value, list):
             dct[key] = np.array(value)
     return dct
+
+def decode_image(data: bytes) -> NDArray[np.float32]:
+    """
+    Decodes the byte string produced by `encode_image` back into a
+    float32 numpy array (H, W, 3) in the range [0, 1].
+    """
+    pil_img = Image.open(io.BytesIO(data))
+    arr = np.asarray(pil_img, dtype=np.float32) / 255.0
+    return arr
 
 
 # Configure logging
@@ -75,8 +89,8 @@ class PolicyServer:
 
                     # Convert the received data into numpy arrays
                     state = np.array(data["observation/state"], dtype=np.float32)
-                    head_image = np.array(data["observation/image"], dtype=np.float32)
-                    wrist_image = np.array(data["observation/wrist_image"], dtype=np.float32)
+                    head_image = decode_image(base64.b64decode(data["observation/image"]))
+                    wrist_image = decode_image(base64.b64decode(data["observation/wrist_image"]))
                     process_time = time.time() - start_process
 
                     logger.info(
@@ -108,18 +122,22 @@ class PolicyServer:
                     try:
                         start_inference = time.time()
                         result = self.policy.infer(observation)
-
-                        filler_state = state.squeeze().copy() # Shape: (16,)
-                        print(f'result shape: {result["actions"].shape}')
-                        actions_to_send = np.zeros(self.config.action_shape, dtype=np.float32)
-                        actions_to_send[:, :7] = result["actions"][:, :7]
-                        actions_to_send[:, -2:-1] = result["actions"][:, 7:]
-                        # fill the same values for the left arm
-                        actions_to_send[:, 7:14] = filler_state[7:14]
-                        actions_to_send[:, -1:] = filler_state[-1]
                         
-                        # action_sequence = result["actions"][:, :16]  # Shape: (10, 16)
-                        action_sequence = actions_to_send  # Shape: (10, 16)
+                        print(f'result shape: {result["actions"].shape}')
+                        
+                        if self.config.is_8dof:
+                            filler_state = state.squeeze().copy() # Shape: (16,)
+                            
+                            actions_to_send = np.zeros(self.config.action_shape, dtype=np.float32)
+                            actions_to_send[:, :7] = result["actions"][:, :7]
+                            actions_to_send[:, -2:-1] = result["actions"][:, 7:]
+                            # fill the same values for the left arm
+                            actions_to_send[:, 7:14] = filler_state[7:14]
+                            actions_to_send[:, -1:] = filler_state[-1]
+                            
+                            action_sequence = actions_to_send
+                        else:
+                            action_sequence = result["actions"][:, :16]  # Shape: (10, 16)
                         print(f'action_sequence shape: {action_sequence.shape}')
                         
                         log_data = {

@@ -70,9 +70,10 @@ class RainbowInputs(transforms.DataTransformFn):
 
         # Process the proprioceptive state
 
-        state = transforms.pad_to_dim(
-            self._get_state_short(data["observation.state"]), self.action_dim
-        )
+        # state = transforms.pad_to_dim(
+        #     self._get_state_short(data["observation.state"]), self.action_dim
+        # )
+        state = transforms.pad_to_dim(data["observation.state"], self.action_dim)
         # state = data["observation.state"]
 
         # Process the images
@@ -90,28 +91,33 @@ class RainbowInputs(transforms.DataTransformFn):
             "image": {
                 "base_0_rgb": base_image,
                 # "wrist_right_0_rgb": wrist_image,
-                "left_wrist_0_rgb": np.zeros_like(base_image),
-                "right_wrist_0_rgb": wrist_image,
+                # "left_wrist_0_rgb": np.zeros_like(base_image),
+                # "right_wrist_0_rgb": wrist_image,
+                "left_wrist_0_rgb": wrist_image,
+                # Pad any non-existent images with zero-arrays of the appropriate shape.
+                "right_wrist_0_rgb": np.zeros_like(base_image),
             },
             "image_mask": {
                 "base_0_rgb": np.True_,
                 # "wrist_right_0_rgb": np.True_,
                 # Mask any non-existent images with False (if ``mask_padding`` is True).
-                "left_wrist_0_rgb": np.False_ if mask_padding else np.True_,
-                "right_wrist_0_rgb": np.True_,
+                # "left_wrist_0_rgb": np.False_ if mask_padding else np.True_,
+                # "right_wrist_0_rgb": np.True_,
+                "left_wrist_0_rgb": np.True_,
+                # Mask any non-existent images with False (if ``mask_padding`` is True).
+                "right_wrist_0_rgb": np.False_ if mask_padding else np.True_,
             },
         }
 
         if "actions" in data:
             # We are padding to the model action dim.
-            inputs["actions"] = transforms.pad_to_dim(
-                self._get_actions_short(data["actions"]), self.action_dim
-            )
+            # inputs["actions"] = transforms.pad_to_dim(
+            #     self._get_actions_short(data["actions"]), self.action_dim
+            # )
+            inputs["actions"] = transforms.pad_to_dim(data["actions"], self.action_dim)
             # inputs["actions"] = data["actions"]
         elif "action" in data:
-            inputs["actions"] = transforms.pad_to_dim(
-                self._get_actions_short(data["action"]), self.action_dim
-            )
+            inputs["actions"] = transforms.pad_to_dim(data["action"], self.action_dim)
             # inputs["actions"] = data["action"]
 
         # Add prompt if available
@@ -148,7 +154,9 @@ class RainbowOutputs(transforms.DataTransformFn):
         # Log available keys for debugging
         logger.debug(f"Available keys in output data: {list(data.keys())}")
         actions = data["actions"]
-        assert actions.shape[1] == 8, f"Expected 8 elements, got {actions.shape[1]}"
+        # print(actions)
+        actions = actions[:, :16]
+        # assert actions.shape[1] == 8, f"Expected 8 elements, got {actions.shape[1]}"
         return {"actions": actions}
 
 

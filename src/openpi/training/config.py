@@ -531,6 +531,24 @@ class TrainConfig:
 
 
 _CONFIGS = [
+    TrainConfig(
+        name="denis_pi0_r2quavers_32bs",
+        exp_name="denis_pi0_r2quavers_32bs",
+        model=pi0.Pi0Config(
+            action_horizon=30,
+        ),
+        data=LeRobotRainbowDataConfigRotated(
+            repo_id="HumanoidTeam/Denis_R2SlowQuaversVLA",
+            base_config=DataConfig(
+                local_files_only=False,
+                prompt_from_task=True,
+            ),
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader("s3://openpi-assets/checkpoints/pi0_base/params"),
+        batch_size=32,
+        num_train_steps=120_000,
+        num_workers=2,
+    ),
     # After Eight + Quality Street with 180-degree rotated head camera (LoRA version)
     TrainConfig(
         name="pi0_fast_lora_aftereight_qs_rotated_250t_512bz",
