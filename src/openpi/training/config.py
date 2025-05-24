@@ -27,7 +27,7 @@ import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
 import openpi.policies.rainbow_policy as rainbow_policy
-from openpi.policies.rainbow_policy import RainbowInputs8DOF, RainbowOutputs8DOF
+from openpi.policies.rainbow_policy import ImagePaddingType
 
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
@@ -351,16 +351,21 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
     # If provided, will be injected into the input data if the "prompt" key is not present.
     default_prompt: str | None = None
     action_sequence_keys: Sequence[str] = ("action",)  # Use action to match dataset
+    cut_to_8_dof: bool = False
+    image_padding_type: ImagePaddingType = ImagePaddingType.PAD_MID
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
             inputs=[
                 rainbow_policy.RainbowInputs(
-                    action_dim=model_config.action_dim, model_type=model_config.model_type
+                    action_dim=model_config.action_dim,
+                    model_type=model_config.model_type,
+                    cut_to_8_dof=self.cut_to_8_dof,
+                    image_padding_type=self.image_padding_type,
                 )
             ],
-            outputs=[rainbow_policy.RainbowOutputs()],
+            outputs=[rainbow_policy.RainbowOutputs(is_8_dof=self.cut_to_8_dof)],
         )
 
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
@@ -376,16 +381,22 @@ class LeRobotRainbowDataConfig(DataConfigFactory):
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
     """Data config for Rainbow robot with 180-degree rotated head camera."""
+    # set to True ONLY for some legacy models that were trained with the wrong rotation
+    do_legacy_rotation: bool = False
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
             inputs=[
-                RainbowInputsWithRotation(
-                    action_dim=model_config.action_dim, model_type=model_config.model_type
+                rainbow_policy.RainbowInputsWithRotation(
+                    action_dim=model_config.action_dim,
+                    model_type=model_config.model_type,
+                    cut_to_8_dof=self.cut_to_8_dof,
+                    image_padding_type=self.image_padding_type,
+                    do_legacy_rotation=self.do_legacy_rotation
                 )
             ],
-            outputs=[rainbow_policy.RainbowOutputs()],
+            outputs=[rainbow_policy.RainbowOutputs(is_8_dof=self.cut_to_8_dof)],
         )
 
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
@@ -398,34 +409,16 @@ class LeRobotRainbowDataConfigRotated(LeRobotRainbowDataConfig):
         )
 
 
-# Define this class at module level, not inside a method
-class RainbowInputsWithRotation(rainbow_policy.RainbowInputs):
-    """Rainbow inputs with 180-degree rotation of the head camera image."""
-
-    def __call__(self, data: dict) -> dict:
-        # Get the head image before standard processing
-        if "observation.image.head" in data:
-            # Rotate image using NumPy (more consistent with codebase)
-            img = np.asarray(data["observation.image.head"])
-            # 180 degree rotation = flip both horizontally and vertically
-            # print('called here, flipping image of shape:', img.shape)
-            # data["observation.image.head"] = np.flip(np.flip(img, axis=0), axis=1)
-            # FIX rotation
-            data["observation.image.head"] = np.flip(np.flip(img, axis=1), axis=2)
-
-        # Call the parent method to do the standard processing
-        return super().__call__(data)
-
-
 @dataclasses.dataclass(frozen=True)
 class LeRobotRainbowDataConfigRotated8DOF(LeRobotRainbowDataConfigRotated):
+    #TODO: this config doesn't do rotation. Is that intentional? The namnig suggests "no"
     """Data config for Rainbow robot with 180-degree rotated head camera and 8-DOF."""
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         data_transforms = _transforms.Group(
-            inputs=[RainbowInputs8DOF(action_dim=model_config.action_dim)],
-            outputs=[RainbowOutputs8DOF()],
+            inputs=[rainbow_policy.RainbowInputs8DOF(action_dim=model_config.action_dim)],
+            outputs=[rainbow_policy.RainbowOutputs8DOF()],
         )
 
         model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
